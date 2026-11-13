@@ -9,12 +9,19 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import F
 
+from .archive import check_archive_quota
 from .conversion import ConversionError, convert
 from .models import Batch, Job, JobInput, Result, Version
 from .operations import GROUPED, TOOLS, extension, supports
 from .storage import remove_files, stored_file, zip_files
 
 logger = logging.getLogger(__name__)
+
+
+def check_queue_quota(owner, incoming):
+    pending = Job.objects.filter(owner=owner, state__in=[Job.State.QUEUED, Job.State.RUNNING]).count()
+    if pending + incoming > settings.MAX_PENDING_JOBS:
+        raise ValueError("Очередь заполнена. Дождись завершения текущих задач.")
 
 
 @transaction.atomic
@@ -38,6 +45,7 @@ def enqueue(owner, batch_id, operation, options, ids):
     selections = options.get("selections")
     if selections is not None and selections.keys() != {str(pk) for pk in ids}:
         raise ValueError("Выбери страницы для каждого PDF.")
+    check_queue_quota(owner, sum(valid for _, valid in groups))
     jobs = Job.objects.bulk_create([
         Job(
             owner=owner, batch=batch, operation=operation,
@@ -69,6 +77,7 @@ def can_retry(job):
 def requeue(owner, job_id):
     job = Job.objects.prefetch_related("inputs__version").get(pk=job_id, owner=owner)
     if can_retry(job):
+        check_queue_quota(owner, 1)
         job.state = Job.State.QUEUED
         job.error = ""
         job.attempts = 0
@@ -109,6 +118,9 @@ def process(job):
             outputs = convert(job.operation, paths, job.options, work)
             if not outputs:
                 raise ConversionError("Готовых файлов нет.")
+            result_size = sum(output.stat().st_size for output in outputs)
+            if result_size > settings.MAX_RESULT_BYTES:
+                raise ConversionError("Результат обработки больше 500 МБ.")
             stem = Path(inputs[0].version.name).stem[:180]
             separate = job.operation == "extract" and job.options.get("mode") == "separate"
             if len(outputs) > 1 and not separate:
@@ -116,6 +128,7 @@ def process(job):
                 zip_files(bundle, [(output, output.name) for output in outputs])
                 outputs = [bundle]
             with transaction.atomic():
+                check_archive_quota(job.owner, sum(output.stat().st_size for output in outputs))
                 for output in outputs:
                     name = f"{stem}{output.suffix}"
                     if separate:

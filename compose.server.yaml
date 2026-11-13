@@ -8,10 +8,20 @@ services:
     environment:
       <<: *settings
       DOCSTATION_SERVE_STATIC: "1"
+      DOCSTATION_BEHIND_HTTPS_PROXY: "1"
     ports: !override
-      - "${DOCSTATION_BIND_IP:-127.0.0.1}:${DOCSTATION_PORT:-8000}:8000"
+      - "127.0.0.1:${DOCSTATION_PORT:-8000}:8000"
     command: ["sh", "-ec", "python manage.py migrate --noinput && exec gunicorn --bind 0.0.0.0:8000 --threads 4 --timeout 120 config.wsgi:application"]
     restart: unless-stopped
   worker:
-    environment: *settings
+    environment:
+      DOCSTATION_DEBUG: "0"
+      DOCSTATION_WORKER: "1"
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     restart: unless-stopped

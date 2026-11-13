@@ -3,7 +3,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import Max, Sum
 
 from .models import ApprovalRound, Batch, Document, Job, Result, Version
 from .operations import SUPPORTED, extension
@@ -14,6 +14,13 @@ from .uploads import TOO_LARGE
 def version_name(upload):
     name = Path(upload.name.replace("\\", "/")).name
     return "".join(character for character in name if character.isprintable())[:255]
+
+
+def check_archive_quota(user, incoming_size):
+    originals = Version.objects.filter(document__owner=user).aggregate(total=Sum("size", default=0))
+    results = Result.objects.filter(job__owner=user).aggregate(total=Sum("size", default=0))
+    if originals["total"] + results["total"] + incoming_size > settings.MAX_ARCHIVE_BYTES:
+        raise ValueError("Лимит архива достигнут. Удали ненужные документы.")
 
 
 def save_version(user, upload, batch_id=None, document_id=None):
@@ -34,6 +41,7 @@ def save_version(user, upload, batch_id=None, document_id=None):
                     raise ValueError("В одной пачке может быть до 50 файлов.")
                 batch.uploaded += 1
                 batch.save(update_fields=["uploaded"])
+            check_archive_quota(user, upload.size)
             if document_id is not None:
                 document = Document.objects.get(owner=user, pk=document_id)
                 number = (document.versions.aggregate(last=Max("number"))["last"] or 0) + 1

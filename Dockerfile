@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bookworm AS base
+FROM python:3.12-slim-trixie AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
     DOCSTATION_DATA=/data
@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-writer-nogui libreoffice-calc-nogui libreoffice-impress-nogui \
     fonts-dejavu-core fonts-crosextra-carlito fonts-crosextra-caladea \
     qpdf ghostscript poppler-utils pandoc \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ghostscript)" ge '10.05.1~dfsg-1+deb13u3' \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=web /app /app
 USER docstation

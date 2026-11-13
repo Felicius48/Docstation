@@ -7,7 +7,7 @@ from contextlib import closing
 from pathlib import Path
 
 from .operations import IMAGES, extension, parse_pages
-from .spreadsheets import convert_spreadsheet
+from .spreadsheets import convert_spreadsheet, read_csv, write_csv
 from .storage import zip_files
 
 logger = logging.getLogger(__name__)
@@ -228,7 +228,14 @@ def convert(operation, paths, options, work):
     if {suffix, target} == {"csv", "xlsx"}:
         convert_spreadsheet(source, target, output)
         return [output]
-    return [office(source, target, work)]
+    converted = office(source, target, work)
+    if target == "csv":
+        with converted.open(encoding="utf-8-sig", newline="") as handle, output.open(
+            "w", encoding="utf-8-sig", newline="",
+        ) as destination:
+            write_csv(destination, read_csv(handle))
+        return [output]
+    return [converted]
 
 
 def structured(operation, source, work):

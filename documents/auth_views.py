@@ -1,17 +1,37 @@
 from datetime import timedelta
+from hashlib import sha256
+from unicodedata import normalize
 
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.views import LoginView
 from django.db import transaction
-from django.http import Http404, HttpResponseBadRequest
+from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from .models import RegistrationInvitation, RegistrationPolicy
+from .models import LoginAttempt, RegistrationInvitation, RegistrationPolicy
+
+
+@transaction.atomic
+def allow_login(username):
+    key = sha256(normalize("NFKC", username).casefold().encode()).hexdigest()
+    now = timezone.now()
+    cutoff = now - timedelta(minutes=5)
+    LoginAttempt.objects.filter(window__lte=cutoff).delete()
+    bucket, created = LoginAttempt.objects.get_or_create(
+        key=key, defaults={"window": now, "attempts": 1},
+    )
+    if created:
+        return True
+    if bucket.attempts >= 10:
+        return False
+    bucket.attempts += 1
+    bucket.save(update_fields=["attempts"])
+    return True
 
 
 class AccountView(LoginView):
@@ -35,6 +55,11 @@ class AccountView(LoginView):
 
     def post(self, request, *args, **kwargs):
         if request.POST.get("action") != "register":
+            if not allow_login(request.POST.get("username", "").strip()[:150]):
+                return HttpResponse(
+                    "Слишком много попыток входа. Повтори через 5 минут.",
+                    status=429, headers={"Retry-After": "300"},
+                )
             return super().post(request, *args, **kwargs)
 
         registration = UserCreationForm(request.POST)
@@ -48,9 +73,6 @@ class AccountView(LoginView):
                     allowed = bool(self.invitation().delete()[0])
                 if allowed:
                     user = registration.save()
-                    if policy.owner_id is None:
-                        policy.owner = user
-                        policy.save(update_fields=["owner"])
         if user is None:
             return self.render_to_response(self.get_context_data(
                 form=self.get_form_class()(request=request), registration=registration,

@@ -29,6 +29,21 @@ def write_workbook(sheets, destination):
         book.save(destination)
 
 
+def csv_cell(value):
+    if isinstance(value, str) and (
+        value.startswith(("\t", "\r", "\n"))
+        or value.lstrip().startswith(("=", "+", "-", "@", "＝", "＋", "－", "＠"))
+    ):
+        return "'" + value
+    return value
+
+
+def write_csv(output, rows):
+    csv.writer(output, quoting=csv.QUOTE_ALL).writerows(
+        [csv_cell(value) for value in row] for row in rows
+    )
+
+
 def convert_spreadsheet(source, target, output):
     if target == "xlsx":
         with source.open(encoding="utf-8-sig", newline="") as handle:
@@ -40,6 +55,6 @@ def convert_spreadsheet(source, target, output):
     workbook = load_workbook(source, read_only=True, data_only=True)
     try:
         with output.open("w", encoding="utf-8-sig", newline="") as handle:
-            csv.writer(handle).writerows(workbook.active.values)
+            write_csv(handle, workbook.active.values)
     finally:
         workbook.close()

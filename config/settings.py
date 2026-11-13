@@ -11,6 +11,8 @@ for directory in (DATA_DIR, DATA_DIR / "uploads", DATA_DIR / "work", DATA_DIR / 
 
 DEBUG = os.environ.get("DOCSTATION_DEBUG", "1") == "1"
 SECRET_KEY = os.environ.get("DOCSTATION_SECRET_KEY")
+if not SECRET_KEY and os.environ.get("DOCSTATION_WORKER") == "1":
+    SECRET_KEY = secrets.token_urlsafe(64)
 if not SECRET_KEY:
     if not DEBUG:
         raise ImproperlyConfigured("Set DOCSTATION_SECRET_KEY.")
@@ -36,6 +38,11 @@ LOGGING = {
         },
     },
 }
+if os.environ.get("DOCSTATION_BEHIND_HTTPS_PROXY") == "1":
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 INSTALLED_APPS = [
@@ -82,3 +89,6 @@ DATA_UPLOAD_MAX_NUMBER_FILES = 1
 DATA_UPLOAD_MAX_MEMORY_SIZE = 256 * 1024
 MAX_FILE_SIZE = 50_000_000
 MAX_BATCH_SIZE = 50
+MAX_ARCHIVE_BYTES = 10_000_000_000
+MAX_PENDING_JOBS = 100
+MAX_RESULT_BYTES = 500_000_000

@@ -92,7 +92,13 @@ class CompressionPreview(models.Model):
 
 class RegistrationPolicy(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
-    public = models.BooleanField(default=True)
+    public = models.BooleanField(default=False)
+
+
+class LoginAttempt(models.Model):
+    key = models.CharField(max_length=64, primary_key=True)
+    window = models.DateTimeField(db_index=True)
+    attempts = models.PositiveSmallIntegerField()
 
 
 class RegistrationInvitation(models.Model):

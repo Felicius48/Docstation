@@ -53,7 +53,7 @@ def expire_previews():
 
 
 def recover_previews(directory):
-    CompressionPreview.objects.filter(state=Job.State.RUNNING).update(state=Job.State.QUEUED)
+    CompressionPreview.objects.filter(state=Job.State.RUNNING).update(state=Job.State.FAILED)
     with transaction.atomic():
         active = {str(key) for key in CompressionPreview.objects.values_list("pk", flat=True)}
         for path in directory.glob("compression-*.pdf"):

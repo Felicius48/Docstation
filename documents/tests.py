@@ -14,19 +14,45 @@ from django.db import connection
 from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 from PIL import Image
 from pypdf import PdfReader, PdfWriter
 
-from .models import Batch, Document, Job, Version
+from .models import Batch, Document, Job, RegistrationPolicy, Version
+from .spreadsheets import convert_spreadsheet
 from .storage import stored_file
+
+
+class SpreadsheetSecurityTests(TestCase):
+    def test_xlsx_text_is_safe_when_exported_to_csv(self):
+        with TemporaryDirectory() as directory:
+            source, output = Path(directory) / "source.xlsx", Path(directory) / "result.csv"
+            workbook = Workbook()
+            sheet = workbook.active
+            sheet.append(["=1+2", -42, "001"])
+            sheet["A1"].data_type = "s"
+            workbook.save(source)
+            convert_spreadsheet(source, "csv", output)
+            self.assertEqual(output.read_text(encoding="utf-8-sig"), "\"'=1+2\",\"-42\",\"001\"\n")
 
 
 class RegistrationTests(TestCase):
     credentials = {"username": "new-owner", "password1": "Local!Pine8Road", "password2": "Local!Pine8Road"}
 
+    def test_unclaimed_registration_is_closed(self):
+        RegistrationPolicy.objects.update(public=False, owner=None)
+        response = self.client.post(reverse("login"), {**self.credentials, "action": "register"})
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(get_user_model().objects.exists())
+
+    def test_login_throttles_repeated_attempts(self):
+        for _ in range(10):
+            self.assertEqual(self.client.post(reverse("login"), {"username": "missing", "password": "bad"}).status_code, 200)
+        self.assertEqual(self.client.post(reverse("login"), {"username": "MISSING", "password": "bad"}).status_code, 429)
+
     def test_registration_creates_an_account_and_starts_a_session(self):
         url = reverse("login")
+        RegistrationPolicy.objects.update(public=True)
         page = self.client.get(url)
         self.assertContains(page, "Создать аккаунт")
         self.assertEqual(page["Referrer-Policy"], "same-origin")
@@ -47,6 +73,7 @@ class RegistrationTests(TestCase):
         url = reverse("login")
         registration = {**self.credentials, "action": "register"}
         self.assertEqual(Client(enforce_csrf_checks=True).post(url, registration).status_code, 403)
+        RegistrationPolicy.objects.update(public=True)
         mismatch = self.client.post(url, {**registration, "password2": "different"})
         self.assertContains(mismatch, "password2_error")
         self.assertFalse(get_user_model().objects.exists())
@@ -62,7 +89,9 @@ class RegistrationTests(TestCase):
     def test_owner_closes_registration_and_invitation_is_single_use(self):
         login_url = reverse("login")
         settings_url = reverse("registration_settings")
-        self.client.post(login_url, {**self.credentials, "action": "register"})
+        owner = get_user_model().objects.create_user("owner")
+        RegistrationPolicy.objects.update(owner=owner, public=True)
+        self.client.force_login(owner)
         self.assertRedirects(self.client.post(settings_url, {"action": "close"}), settings_url)
         response = self.client.post(settings_url, {"action": "invite"})
         invitation_url = response.context["invitation_url"].removeprefix("http://testserver")
@@ -91,6 +120,16 @@ class ArchiveWorkflowTests(TransactionTestCase):
         self.enterContext(override_settings(DATA_DIR=root, FILE_UPLOAD_TEMP_DIR=self.upload_dir))
         self.owner = get_user_model().objects.create_user("owner")
         self.client.force_login(self.owner)
+
+    @override_settings(MAX_ARCHIVE_BYTES=5, MAX_PENDING_JOBS=1)
+    def test_archive_and_queue_quotas_reject_excess_work(self):
+        batch = self.new_batch()
+        version = self.upload(batch, "test.txt", b"12345").json()["id"]
+        self.assertEqual(self.upload(batch, "extra.txt", b"6").status_code, 400)
+        self.assertEqual(Version.objects.count(), 1)
+        self.assertEqual(self.submit(batch, "markdown", [version]).status_code, 200)
+        self.assertEqual(self.submit(self.new_batch(), "markdown", [version]).status_code, 400)
+        self.assertEqual(Job.objects.count(), 1)
 
     def new_batch(self):
         response = self.client.post(reverse("new_batch"))

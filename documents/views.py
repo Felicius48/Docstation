@@ -223,6 +223,9 @@ def retry(request, pk):
         batch_id = requeue(request.user, pk)
     except Job.DoesNotExist as exc:
         raise Http404 from exc
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        batch_id = get_object_or_404(Job, pk=pk, owner=request.user).batch_id
     return redirect("batch_detail", batch_id)
 
 
