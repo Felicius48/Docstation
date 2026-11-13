@@ -1,0 +1,22 @@
+{% extends 'documents/base.html' %}
+{% block title %}Управление регистрацией · Docstation{% endblock %}
+{% block content %}
+<div class="intro detail-intro"><h1>Управление регистрацией</h1></div>
+<section class="panel converter">
+  <p>Свободная регистрация {% if policy.public %}открыта{% else %}закрыта{% endif %}.</p>
+  <form method="post" class="form-footer">
+    {% csrf_token %}
+    {% if policy.public %}
+    <button class="button secondary" name="action" value="close">Закрыть регистрацию</button>
+    {% else %}
+    <button class="button secondary" name="action" value="open">Открыть регистрацию</button>
+    {% endif %}
+    <button class="button primary" name="action" value="invite">Создать приглашение</button>
+  </form>
+  {% if invitation_url %}
+  <label>Одноразовая ссылка на 7 дней
+    <input type="url" readonly value="{{ invitation_url }}">
+  </label>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,7 @@
+.venv/
+data/
+.env
+__pycache__/
+*.py[cod]
+.DS_Store
+docstation-backup*.tar.gz

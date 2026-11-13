@@ -1,0 +1,6 @@
+{% load previews %}
+{% with mime=file.name|preview_type %}
+{% if mime %}
+<button type="button" class="button secondary" data-file-preview="{{ preview_url }}" data-download="{{ download_url }}" data-name="{{ file.name }}" data-type="{{ mime }}" data-size="{{ file.size|filesizeformat }}" data-version="{{ file.number|default:'' }}" aria-label="Предпросмотр {{ file.name }}">Предпросмотр</button>
+{% endif %}
+{% endwith %}

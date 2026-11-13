@@ -1,0 +1,7 @@
+{% extends 'documents/base.html' %}
+{% block title %}Пачка №{{ batch.pk }} · Docstation{% endblock %}
+{% block content %}
+<div class="intro detail-intro"><a class="back" href="{% url 'history' %}">← К истории</a><h1>Пачка №{{ batch.pk }}</h1><p>{{ batch.created_at|date:"d.m.Y · H:i" }}</p></div>
+{% include 'documents/batch_results.html' %}
+{% include 'documents/preview_dialog.html' %}
+{% endblock %}

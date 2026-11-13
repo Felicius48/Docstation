@@ -1,0 +1,36 @@
+{% extends 'documents/base.html' %}
+{% block title %}{{ document.title }} · Docstation{% endblock %}
+{% block content %}
+<div class="intro detail-intro"><a class="back" href="{% url 'archive' %}">← К архиву</a><h1>{{ document.title }}</h1><p>Обновлён {{ document.updated_at|date:"d.m.Y · H:i" }}</p></div>
+<div class="panel action-panel">
+  <form action="{% url 'add_version' document.pk %}" method="post" enctype="multipart/form-data" class="inline-form">
+    {% csrf_token %}<label class="new-file">Обновлённый файл<input type="file" name="file" required></label><button class="button primary"><svg><use href="#plus"/></svg> Сохранить версию</button>
+  </form>
+  <form action="{% url 'delete_document' document.pk %}" method="post" data-confirm="Удалить документ, все его версии и связанные результаты?">{% csrf_token %}<button class="button danger">Удалить документ</button></form>
+</div>
+<section class="detail-list">
+  <h2>История версий</h2>
+  {% for approval in document.approvals.all %}
+  <p><a class="button secondary" href="{% url 'approval_detail' approval.pk %}">{{ approval.title }} · карточка согласования</a></p>
+  {% endfor %}
+  {% for version in versions %}
+  <article class="panel version">
+    <div class="version-head"><span class="file-icon"><svg><use href="#logo"/></svg></span><div class="row-main"><b>{{ version.name }}</b><small>Версия {{ version.number }} · {{ version.created_at|date:"d.m.Y H:i" }} · {{ version.size|filesizeformat }}</small></div>{% if forloop.first %}<span class="badge done">Текущая</span>{% endif %}</div>
+    <div class="version-actions">
+      <a class="button secondary" href="{% url 'approval_new' version.pk %}">Отправить на согласование</a>
+      {% url 'preview_version' version.pk as preview_url %}{% url 'download_version' version.pk as download_url %}
+      {% include 'documents/preview_button.html' with file=version %}
+      <a class="button secondary" href="{% url 'download_version' version.pk %}"><svg><use href="#download"/></svg> Скачать</a>
+      <a class="button secondary" href="{% url 'workspace' %}?version={{ version.pk }}"><svg><use href="#arrows"/></svg> Обработать</a>
+      <form action="{% url 'delete_version' document.pk version.pk %}" method="post" data-confirm="Удалить версию и связанные результаты?">{% csrf_token %}<button class="button danger">Удалить версию</button></form>
+    </div>
+    {% for item in version.job_inputs.all %}
+      <div class="result-line"><a href="{% url 'batch_detail' item.job.batch_id %}">{{ item.job.get_state_display }} · {{ item.job.created_at|date:"d.m.Y H:i" }}</a>
+      {% for result in item.job.results.all %}<a href="{% url 'download_result' result.pk %}" class="download-link"><svg><use href="#download"/></svg>{{ result.name }}</a>{% url 'preview_result' result.pk as preview_url %}{% url 'download_result' result.pk as download_url %}
+      {% include 'documents/preview_button.html' with file=result %}{% endfor %}</div>
+    {% endfor %}
+  </article>
+  {% endfor %}
+</section>
+{% include 'documents/preview_dialog.html' %}
+{% endblock %}

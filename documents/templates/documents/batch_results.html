@@ -1,0 +1,15 @@
+<section class="panel" id="batch-results" {% if active %}data-poll="true"{% endif %}>
+  <div class="section-head padded"><h2>Задачи</h2>{% if ready %}<a class="button primary" href="{% url 'download_batch' batch.pk %}"><svg><use href="#download"/></svg> Скачать ZIP</a>{% endif %}</div>
+  {% for job, label, retryable in jobs %}
+  <article class="job-row">
+    <div class="job-heading"><span class="file-icon"><svg><use href="#logo"/></svg></span><div class="row-main"><b>{% for item in job.inputs.all %}{{ item.version.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</b><small>{{ label }}</small></div><span class="badge {{ job.state }}">{{ job.get_state_display }}</span></div>
+    {% if job.state == 'running' %}<div class="job-progress" role="progressbar" aria-label="Обработка файлов"></div>{% endif %}
+    {% if job.error %}<p class="job-error">{{ job.error }}</p>{% endif %}
+    <div class="job-actions">
+      {% for result in job.results.all %}<a class="download-link" href="{% url 'download_result' result.pk %}"><svg><use href="#download"/></svg>{{ result.name }} <small>· {{ result.size|filesizeformat }}</small></a>{% url 'preview_result' result.pk as preview_url %}{% url 'download_result' result.pk as download_url %}
+      {% include 'documents/preview_button.html' with file=result %}{% endfor %}
+      {% if job.state == 'failed' and retryable %}<form method="post" action="{% url 'retry' job.pk %}">{% csrf_token %}<button class="button secondary">Повторить</button></form>{% endif %}
+    </div>
+  </article>
+  {% empty %}<p class="empty">В этой пачке пока нет задач.</p>{% endfor %}
+</section>

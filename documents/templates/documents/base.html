@@ -1,0 +1,47 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Docstation{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'documents/app.css' %}">
+  <script src="{% static 'documents/app.js' %}" defer></script>
+</head>
+<body>
+{% include 'documents/icons.html' %}
+{% if request.user.is_authenticated %}
+<div class="shell">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="{% url 'workspace' %}" class="brand"><span class="brand-mark"><svg aria-hidden="true"><use href="#logo"/></svg></span>Docstation</a>
+      <nav class="site-nav" aria-label="Основное меню">
+        {% with route=request.resolver_match.url_name %}
+        <a href="{% url 'workspace' %}" {% if route == 'workspace' %}aria-current="page"{% endif %}>Конвертер</a>
+        <a href="{% url 'archive' %}" {% if route == 'archive' or route == 'document_detail' %}aria-current="page"{% endif %}>Архив</a>
+        <a href="{% url 'history' %}" {% if route == 'history' or route == 'batch_detail' %}aria-current="page"{% endif %}>История</a>
+        <a href="{% url 'approvals' %}">Документооборот</a>
+        {% endwith %}
+      </nav>
+      <div class="account">
+        {% if request.user.is_superuser or request.user.registrationpolicy_set.exists %}
+        <a class="button secondary" href="{% url 'registration_settings' %}">Регистрация</a>
+        {% endif %}
+        <span class="account-name">{{ request.user.username }}</span>
+        <form method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button class="button secondary sign-out" aria-label="Выйти">Выйти <svg aria-hidden="true"><use href="#arrow"/></svg></button>
+        </form>
+      </div>
+    </div>
+  </header>
+  <main class="content" id="main">
+    {% for message in messages %}<p class="notice {{ message.tags }}" role="status">{{ message }}</p>{% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% else %}
+  {% block guest %}{% endblock %}
+{% endif %}
+</body>
+</html>

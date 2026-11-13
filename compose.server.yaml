@@ -1,0 +1,17 @@
+x-settings: &settings
+  DOCSTATION_DEBUG: "0"
+  DOCSTATION_SECRET_KEY: ${DOCSTATION_SECRET_KEY:?Set DOCSTATION_SECRET_KEY in .env}
+  DOCSTATION_HOSTS: ${DOCSTATION_HOSTS:-localhost,127.0.0.1}
+
+services:
+  web:
+    environment:
+      <<: *settings
+      DOCSTATION_SERVE_STATIC: "1"
+    ports: !override
+      - "${DOCSTATION_BIND_IP:-127.0.0.1}:${DOCSTATION_PORT:-8000}:8000"
+    command: ["sh", "-ec", "python manage.py migrate --noinput && exec gunicorn --bind 0.0.0.0:8000 --threads 4 --timeout 120 config.wsgi:application"]
+    restart: unless-stopped
+  worker:
+    environment: *settings
+    restart: unless-stopped
