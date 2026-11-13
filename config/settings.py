@@ -24,6 +24,18 @@ if not SECRET_KEY:
     SECRET_KEY = key_file.read_text().strip()
 
 ALLOWED_HOSTS = os.environ.get("DOCSTATION_HOSTS", "localhost,127.0.0.1,[::1]").split(",")
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"csrf_console": {"class": "logging.StreamHandler"}},
+    "loggers": {
+        "django.security.csrf": {
+            "handlers": ["csrf_console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
+}
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 INSTALLED_APPS = [

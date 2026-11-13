@@ -33,11 +33,6 @@ class AccountView(LoginView):
         context.setdefault("registration", UserCreationForm())
         return context
 
-    def render_to_response(self, context, **kwargs):
-        response = super().render_to_response(context, **kwargs)
-        response["Referrer-Policy"] = "no-referrer"
-        return response
-
     def post(self, request, *args, **kwargs):
         if request.POST.get("action") != "register":
             return super().post(request, *args, **kwargs)

@@ -27,7 +27,9 @@ class RegistrationTests(TestCase):
 
     def test_registration_creates_an_account_and_starts_a_session(self):
         url = reverse("login")
-        self.assertContains(self.client.get(url), "Создать аккаунт")
+        page = self.client.get(url)
+        self.assertContains(page, "Создать аккаунт")
+        self.assertEqual(page["Referrer-Policy"], "same-origin")
         response = self.client.post(url, {
             **self.credentials, "action": "register", "next": "https://example.com/",
         })
@@ -68,7 +70,9 @@ class RegistrationTests(TestCase):
         registration = {**self.credentials, "username": "invited", "action": "register"}
         self.assertNotContains(guest.get(login_url), "Создать аккаунт")
         self.assertEqual(guest.post(login_url, registration).status_code, 403)
-        self.assertContains(guest.get(invitation_url), "Создать аккаунт")
+        page = guest.get(invitation_url)
+        self.assertContains(page, "Создать аккаунт")
+        self.assertEqual(page["Referrer-Policy"], "same-origin")
         self.assertRedirects(guest.post(invitation_url, registration), reverse("workspace"))
         self.assertEqual(guest.post(settings_url, {"action": "open"}).status_code, 404)
         self.assertEqual(Client().post(invitation_url, {**registration, "username": "another"}).status_code, 403)
