@@ -17,6 +17,7 @@
   <article class="panel version">
     <div class="version-head"><span class="file-icon"><svg><use href="#logo"/></svg></span><div class="row-main"><b>{{ version.name }}</b><small>Версия {{ version.number }} · {{ version.created_at|date:"d.m.Y H:i" }} · {{ version.size|filesizeformat }}</small></div>{% if forloop.first %}<span class="badge done">Текущая</span>{% endif %}</div>
     <div class="version-actions">
+      <a class="button secondary" href="{% url 'workflow_create' version.pk %}">Создать карточку ЭДО</a>
       <a class="button secondary" href="{% url 'approval_new' version.pk %}">Отправить на согласование</a>
       {% url 'preview_version' version.pk as preview_url %}{% url 'download_version' version.pk as download_url %}
       {% include 'documents/preview_button.html' with file=version %}

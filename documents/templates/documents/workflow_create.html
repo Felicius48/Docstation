@@ -1,0 +1,10 @@
+{% extends 'documents/base.html' %}
+{% block title %}Новая карточка ЭДО · DocStation{% endblock %}
+{% block content %}
+<div class="intro detail-intro"><a class="back" href="{% url 'document_detail' version.document_id %}">← К документу</a><h1>Новая карточка ЭДО</h1><p>{{ version.name }} · версия {{ version.number }}</p></div>
+<form class="panel version approval-form" method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button class="button primary">Создать карточку</button>
+</form>
+{% endblock %}

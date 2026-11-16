@@ -1,8 +1,11 @@
 from django.urls import path
 
-from . import approval_views, views
+from . import approval_views, views, workflow_views
 
 urlpatterns = [
+    path("workflow/", workflow_views.workflow_records, name="workflow_records"),
+    path("workflow/new/<int:pk>/", workflow_views.workflow_create, name="workflow_create"),
+    path("workflow/<int:pk>/", workflow_views.workflow_detail, name="workflow_detail"),
     path("approvals/", approval_views.approvals, name="approvals"),
     path("approvals/status/<slug:status>/", approval_views.approvals, name="approval_status"),
     path("approvals/new/", approval_views.approval_new, name="approval_upload"),

@@ -20,7 +20,8 @@
         <a href="{% url 'workspace' %}" {% if route == 'workspace' %}aria-current="page"{% endif %}>Конвертер</a>
         <a href="{% url 'archive' %}" {% if route == 'archive' or route == 'document_detail' %}aria-current="page"{% endif %}>Архив</a>
         <a href="{% url 'history' %}" {% if route == 'history' or route == 'batch_detail' %}aria-current="page"{% endif %}>История</a>
-        <a href="{% url 'approvals' %}">Документооборот</a>
+        <a href="{% url 'approvals' %}">Согласования</a>
+        <a href="{% url 'workflow_records' %}" {% if route == 'workflow_records' or route == 'workflow_detail' or route == 'workflow_create' %}aria-current="page"{% endif %}>ЭДО</a>
         {% endwith %}
       </nav>
       <div class="account">

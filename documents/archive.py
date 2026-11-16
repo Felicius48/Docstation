@@ -5,7 +5,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Max, Sum
 
-from .models import ApprovalRound, Batch, Document, Job, Result, Version
+from .models import ApprovalRound, Batch, Document, Job, Result, Version, WorkflowRecord
 from .operations import SUPPORTED, extension
 from .storage import remove_files, stored_file
 from .uploads import TOO_LARGE
@@ -78,6 +78,8 @@ def delete_versions(user, document_id, version_id):
         raise VersionBusyError("Дождись завершения обработки.")
     if ApprovalRound.objects.filter(version__in=versions).exists():
         raise VersionBusyError("Версия хранится в истории согласования.")
+    if WorkflowRecord.objects.filter(version__in=versions).exists():
+        raise VersionBusyError("Версия хранится в карточке ЭДО.")
     keys = list(versions.values_list("key", flat=True))
     keys.extend(Result.objects.filter(job__in=jobs).values_list("key", flat=True))
     jobs.delete()

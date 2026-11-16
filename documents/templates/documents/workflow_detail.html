@@ -1,0 +1,36 @@
+{% extends 'documents/base.html' %}
+{% block title %}{{ record.title }} · ЭДО · DocStation{% endblock %}
+{% block content %}
+<div class="intro detail-intro">
+  <a class="back" href="{% url 'workflow_records' %}">← К карточкам ЭДО</a>
+  <h1>{{ record.title }}</h1>
+  <p>{{ record.get_kind_display }} · {{ record.get_state_display }}</p>
+</div>
+<section class="panel version approval-form">
+  <h2>Назначение</h2>
+  <p class="preview-text">{{ record.purpose }}</p>
+  {% if record.description %}<h2>Описание</h2><p class="preview-text">{{ record.description }}</p>{% endif %}
+  <p>Создана {{ record.created_at|date:"d.m.Y H:i" }} · обновлена {{ record.updated_at|date:"d.m.Y H:i" }}</p>
+  {% if record.registered_at %}<p>Регистрация {{ record.registration_number }} от {{ record.registered_at|date:"d.m.Y" }}</p>{% endif %}
+  <a class="button secondary" href="{% url 'download_version' record.version_id %}">Скачать версию {{ record.version.number }}</a>
+</section>
+{% if transitions %}
+<form class="panel version approval-form" method="post">
+  {% csrf_token %}
+  <label>Новый статус<select name="state">{% for value, label in transitions %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+  <label>Комментарий (обязателен при отклонении или отзыве)<textarea name="comment" rows="3" maxlength="4000"></textarea></label>
+  <button class="button primary">Изменить статус</button>
+</form>
+{% endif %}
+<section class="panel version">
+  <h2>Журнал действий</h2>
+  <ol class="approval-timeline">
+  {% for event in events %}
+    <li><b>{% if event.previous_state %}{{ event.get_previous_state_display }} → {% endif %}{{ event.get_state_display }}</b>
+      <small>{{ event.created_at|date:"d.m.Y H:i" }} · {{ event.actor.get_username }}</small>
+      {% if event.comment %}<p class="preview-text">{{ event.comment }}</p>{% endif %}
+    </li>
+  {% endfor %}
+  </ol>
+</section>
+{% endblock %}
