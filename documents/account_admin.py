@@ -22,11 +22,25 @@ class AccountAdminSite(AdminSite):
         return redirect_to_login(request.GET.get("next") or request.path)
 
 
+class DepartmentAdmin(GroupAdmin):
+    fields = ("name",)
+
+
 class AccountAdmin(UserAdmin):
+    filter_horizontal = ("groups",)
+    fieldsets = (
+        (None, {"fields": ("username", "password")}),
+        ("Контакты", {"fields": ("first_name", "last_name", "email")}),
+        ("Доступ", {"fields": ("is_active", "is_superuser", "groups")}),
+        ("Даты", {"fields": ("last_login", "date_joined")}),
+    )
+    list_filter = ("is_active", "is_superuser", "groups")
+    list_display = ("username", "email", "first_name", "last_name", "is_superuser")
+
     def has_delete_permission(self, request, obj=None):
         return False
 
 
 account_admin = AccountAdminSite(name="account_admin")
 account_admin.register(get_user_model(), AccountAdmin)
-account_admin.register(Group, GroupAdmin)
+account_admin.register(Group, DepartmentAdmin)

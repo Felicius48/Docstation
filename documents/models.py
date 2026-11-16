@@ -179,10 +179,6 @@ class WorkflowRecord(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    class Meta:
-        permissions = [("manage_workflowrecord", "Can manage all workflow records")]
-
-
 class WorkflowEvent(models.Model):
     record = models.ForeignKey(WorkflowRecord, on_delete=models.PROTECT, related_name="events")
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)

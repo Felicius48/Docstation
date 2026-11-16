@@ -4,7 +4,6 @@ from unicodedata import normalize
 
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import Group
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.views import LoginView
 from django.db import transaction
@@ -74,7 +73,6 @@ class AccountView(LoginView):
                     allowed = bool(self.invitation().delete()[0])
                 if allowed:
                     user = registration.save()
-                    user.groups.add(Group.objects.get(name="Сотрудник"))
         if user is None:
             return self.render_to_response(self.get_context_data(
                 form=self.get_form_class()(request=request), registration=registration,

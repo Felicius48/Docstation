@@ -8,7 +8,9 @@
     <div class="job-actions">
       {% for item in job.inputs.all %}
         <a class="button secondary" href="{% url 'download_version' item.version_id %}">Исходник · {{ item.version.name }}</a>
-        {% if perms.documents.view_workflowrecord and perms.documents.add_workflowrecord %}<a class="button secondary" href="{% url 'workflow_create' item.version_id %}">В ЭДО · {{ item.version.name }}</a>{% endif %}
+        {% if batch.owner_id == request.user.pk %}
+        <a class="button secondary" href="{% url 'workflow_create' item.version_id %}">В ЭДО · {{ item.version.name }}</a>
+        {% endif %}
       {% endfor %}
       {% for result in job.results.all %}<a class="download-link" href="{% url 'download_result' result.pk %}"><svg><use href="#download"/></svg>{{ result.name }} <small>· {{ result.size|filesizeformat }}</small></a>{% url 'preview_result' result.pk as preview_url %}{% url 'download_result' result.pk as download_url %}
       {% include 'documents/preview_button.html' with file=result %}{% endfor %}

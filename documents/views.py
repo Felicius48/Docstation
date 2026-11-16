@@ -121,9 +121,13 @@ def submit(request, pk):
     return JsonResponse({"url": reverse("batch_detail", args=[pk])})
 
 
+def visible_to(queryset, user, owner="owner"):
+    return queryset if user.is_superuser else queryset.filter(**{owner: user})
+
+
 @login_required
 def history(request):
-    batches = Batch.objects.filter(owner=request.user, jobs__isnull=False).annotate(
+    batches = visible_to(Batch.objects.filter(jobs__isnull=False), request.user).select_related("owner").annotate(
         job_count=Count("jobs"),
     ).order_by("-pk")
     return render(request, "documents/history.html", {
@@ -133,7 +137,7 @@ def history(request):
 
 @login_required
 def batch_detail(request, pk):
-    batch = get_object_or_404(Batch, owner=request.user, pk=pk)
+    batch = get_object_or_404(visible_to(Batch.objects.all(), request.user), pk=pk)
     jobs = list(batch.jobs.order_by("pk").prefetch_related("inputs__version", "results"))
     template = (
         "documents/batch_results.html" if request.GET.get("fragment") == "jobs" else "documents/batch.html"
@@ -150,31 +154,32 @@ def batch_detail(request, pk):
 @login_required
 @require_POST
 def retry(request, pk):
+    job = get_object_or_404(visible_to(Job.objects.select_related("owner"), request.user), pk=pk)
     try:
-        batch_id = requeue(request.user, pk)
+        batch_id = requeue(job.owner, pk)
     except Job.DoesNotExist as exc:
         raise Http404 from exc
     except ValueError as exc:
         messages.error(request, str(exc))
-        batch_id = get_object_or_404(Job, pk=pk, owner=request.user).batch_id
+        batch_id = job.batch_id
     return redirect("batch_detail", batch_id)
 
 
 @login_required
 def download_version(request, pk, preview=False):
-    version = get_object_or_404(Version, document__owner=request.user, pk=pk)
+    version = get_object_or_404(visible_to(Version.objects.all(), request.user, "document__owner"), pk=pk)
     return download(version.key, version.name, preview=preview)
 
 
 @login_required
 def download_result(request, pk, preview=False):
-    result = get_object_or_404(Result, job__owner=request.user, pk=pk)
+    result = get_object_or_404(visible_to(Result.objects.all(), request.user, "job__owner"), pk=pk)
     return download(result.key, result.name, preview=preview)
 
 
 @login_required
 def download_batch(request, pk):
-    batch = get_object_or_404(Batch, owner=request.user, pk=pk)
+    batch = get_object_or_404(visible_to(Batch.objects.all(), request.user), pk=pk)
     results = list(Result.objects.filter(job__batch=batch, job__state=Job.State.DONE))
     if not results:
         raise Http404

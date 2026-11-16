@@ -16,6 +16,14 @@
   {% if record.registered_at %}<p>Регистрация {{ record.registration_number }} от {{ record.registered_at|date:"d.m.Y" }}</p>{% endif %}
   <a class="button secondary" href="{% url 'workflow_file' record.pk %}">Скачать версию {{ record.version.number }}</a>
 </section>
+{% if details_form %}
+<form class="panel version approval-form" method="post" enctype="multipart/form-data" action="{% url 'workflow_edit' record.pk %}">
+  {% csrf_token %}
+  {{ details_form.as_p }}
+  {% if record.state == 'created' or record.state == 'review' %}<label>Новая версия файла<input type="file" name="file"></label>{% endif %}
+  <button class="button secondary">Сохранить изменения</button>
+</form>
+{% endif %}
 {% if recipient_form %}
 <form class="panel version approval-form" method="post">
   {% csrf_token %}

@@ -19,9 +19,7 @@
         {% with route=request.resolver_match.url_name %}
         <a href="{% url 'workspace' %}" {% if route == 'workspace' %}aria-current="page"{% endif %}>Конвертер</a>
         <a href="{% url 'history' %}" {% if route == 'history' or route == 'batch_detail' %}aria-current="page"{% endif %}>История</a>
-        {% if perms.documents.view_workflowrecord %}
         <a href="{% url 'workflow_records' %}" {% if route == 'workflow_records' or route == 'workflow_detail' or route == 'workflow_create' %}aria-current="page"{% endif %}>ЭДО</a>
-        {% endif %}
         {% endwith %}
         {% if request.user.is_superuser %}
         <a href="{% url 'account_admin:index' %}">Управление</a>

@@ -10,36 +10,41 @@ from .models import Document, Version, WorkflowRecord
 
 
 class WorkflowTests(TestCase):
-    def user(self, username, role="Сотрудник"):
-        user = get_user_model().objects.create_user(username)
-        user.groups.add(Group.objects.get(name=role))
-        return user
+    def user(self, username):
+        return get_user_model().objects.create_user(username)
 
     def test_registry_lifecycle_audit_and_owner_boundary(self):
         owner = self.user("author")
         outsider = self.user("outsider")
+        recipient = self.user("recipient")
         document = Document.objects.create(owner=owner, title="Договор")
         version = Version.objects.create(document=document, number=1, name="contract.txt", size=10)
         create = reverse("workflow_create", args=[version.pk])
         self.client.force_login(outsider)
         self.assertEqual(self.client.get(create).status_code, 404)
         self.client.force_login(owner)
-        data = {"title": "Договор", "kind": "ДОГ", "purpose": "Поставка"}
+        data = {"title": "Договор", "kind": "ДОГ", "purpose": "Поставка", "recipient": recipient.pk}
         self.assertContains(self.client.post(create, {**data, "purpose": ""}), "Назначение")
         self.assertFalse(WorkflowRecord.objects.exists())
         for expected in (1, 2):
+            self.client.force_login(owner)
             detail = self.client.post(create, data).url
             self.assertEqual(self.client.post(detail, {"state": "registered"}).status_code, 400)
             self.assertEqual(self.client.post(detail, {"state": "withdrawn"}).status_code, 400)
-            for next_state in ("review", "signed", "registered", "archived"):
+            self.assertRedirects(self.client.post(detail, {"state": "review"}), detail)
+            self.client.force_login(recipient)
+            for next_state in ("signed", "registered", "archived"):
                 self.assertRedirects(self.client.post(detail, {"state": next_state}), detail)
             record = WorkflowRecord.objects.get(pk=int(detail.rstrip("/").split("/")[-1]))
             self.assertEqual(record.registration_number, f"ДОГ-{timezone.localdate().year}-{expected:06d}")
             self.assertEqual(record.events.count(), 5)
-            self.assertTrue(all(event.actor == owner for event in record.events.all()))
+            self.assertEqual(list(record.events.order_by("pk").values_list("actor_id", flat=True)),
+                             [owner.pk, owner.pk, recipient.pk, recipient.pk, recipient.pk])
         self.assertTrue(Version.objects.filter(pk=version.pk).exists())
+        self.client.force_login(owner)
         rejected = self.client.post(create, data).url
         self.assertRedirects(self.client.post(rejected, {"state": "review"}), rejected)
+        self.client.force_login(recipient)
         self.assertEqual(self.client.post(rejected, {"state": "rejected"}).status_code, 400)
         self.assertRedirects(self.client.post(rejected, {"state": "rejected", "comment": "Нужны правки"}), rejected)
         self.assertContains(self.client.get(rejected), "Нужны правки")
@@ -51,6 +56,8 @@ class WorkflowTests(TestCase):
     def test_recipient_sees_only_sent_card_and_its_file(self):
         from pathlib import Path
         from tempfile import TemporaryDirectory
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
 
         from .storage import stored_file
 
@@ -72,16 +79,31 @@ class WorkflowTests(TestCase):
         self.assertEqual(self.client.get(file_url).status_code, 404)
         self.client.force_login(author)
         self.assertRedirects(self.client.post(detail, {"state": "review"}), detail)
+        edit_url = reverse("workflow_edit", args=[record.pk])
+        updates = {"title": "Обновлено", "purpose": "Проверка"}
+        self.assertEqual(self.client.post(detail, {"state": "signed"}).status_code, 403)
+        self.assertEqual(self.client.post(edit_url, updates).status_code, 403)
         self.client.force_login(reader)
         self.assertContains(self.client.get(reverse("workflow_records")), "Входящий от sender")
-        self.assertEqual(self.client.post(detail, {"state": "signed"}).status_code, 403)
-        with TemporaryDirectory() as directory, self.settings(DATA_DIR=Path(directory)):
+        self.assertRedirects(self.client.post(edit_url, updates), detail)
+        self.assertContains(self.client.get(detail), "Обновлено")
+        with TemporaryDirectory() as directory, self.settings(
+            DATA_DIR=Path(directory), FILE_UPLOAD_TEMP_DIR=Path(directory),
+        ):
             path = stored_file(version.key)
             path.parent.mkdir()
             path.write_bytes(b"test")
             response = self.client.get(file_url)
             self.assertEqual(b"".join(response.streaming_content), b"test")
             response.close()
+            self.assertRedirects(self.client.post(edit_url, {
+                **updates, "file": SimpleUploadedFile("revision.txt", b"updated"),
+            }), detail)
+            record.refresh_from_db()
+            self.assertEqual(record.version.number, 2)
+            self.assertEqual(path.read_bytes(), b"test")
+            with closing(self.client.get(file_url)) as result:
+                self.assertEqual(b"".join(result.streaming_content), b"updated")
         self.assertEqual(self.client.get(reverse("download_version", args=[version.pk])).status_code, 404)
         self.client.force_login(stranger)
         self.assertEqual(self.client.get(detail).status_code, 404)
@@ -117,27 +139,29 @@ class WorkflowTests(TestCase):
         from django.core.management import call_command
 
         author = self.user("author")
-        observer = self.user("observer", "Наблюдатель")
-        manager = self.user("manager", "Администратор ЭДО")
+        colleague = self.user("colleague")
+        department = Group.objects.create(name="Бухгалтерия")
+        author.groups.add(department)
+        colleague.groups.add(department)
         version = Version.objects.create(
             document=Document.objects.create(owner=author, title="Test"), number=1, name="test.txt", size=4,
         )
         record = WorkflowRecord.objects.create(version=version, title="Test", kind="ЗАЯ", purpose="Check")
         detail = reverse("workflow_detail", args=[record.pk])
         admin = reverse("account_admin:index")
-        self.client.force_login(observer)
+        self.client.force_login(colleague)
         self.assertEqual(self.client.get(reverse("workflow_records")).status_code, 200)
-        self.assertEqual(self.client.get(reverse("workflow_upload")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("workflow_upload")).status_code, 200)
         self.assertEqual(self.client.get(detail).status_code, 404)
-        self.assertEqual(self.client.get(admin, follow=True).status_code, 403)
-        self.client.force_login(manager)
-        self.assertEqual(self.client.get(detail).status_code, 200)
-        self.assertRedirects(self.client.post(detail, {"state": "review"}), detail)
         self.assertEqual(self.client.get(admin, follow=True).status_code, 403)
         alex = self.user("alex")
         call_command("grant_admin", alex.username)
         alex.refresh_from_db()
         self.assertTrue(alex.is_superuser and alex.is_staff)
         self.client.force_login(alex)
+        self.assertEqual(self.client.get(detail).status_code, 200)
+        self.assertRedirects(self.client.post(reverse("workflow_edit", args=[record.pk]), {
+            "title": "Изменено администратором", "purpose": "Check",
+        }), detail)
         for page in (admin, reverse("account_admin:auth_user_changelist"), reverse("account_admin:auth_group_changelist")):
             self.assertEqual(self.client.get(page).status_code, 200)

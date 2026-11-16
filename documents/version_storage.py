@@ -3,7 +3,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Max, Sum
 
 from .models import Batch, Document, Result, Version
 from .operations import SUPPORTED, extension
@@ -23,7 +23,7 @@ def check_archive_quota(user, incoming_size):
         raise ValueError("Лимит архива достигнут. Удали ненужные документы.")
 
 
-def save_version(user, upload, batch_id=None):
+def save_version(user, upload, batch_id=None, *, document=None):
     name = version_name(upload)
     if extension(name) not in SUPPORTED:
         raise ValueError("Этот формат пока не поддерживается.")
@@ -42,8 +42,12 @@ def save_version(user, upload, batch_id=None):
                 batch.uploaded += 1
                 batch.save(update_fields=["uploaded"])
             check_archive_quota(user, upload.size)
-            document = Document.objects.create(owner=user, title=name)
-            version = Version.objects.create(document=document, number=1, name=name, size=upload.size)
+            if document is None:
+                document = Document.objects.create(owner=user, title=name)
+                number = 1
+            else:
+                number = document.versions.aggregate(last=Max("number", default=0))["last"] + 1
+            version = Version.objects.create(document=document, number=number, name=name, size=upload.size)
             key = version.key
             # The configured Django handler already placed the upload on the same volume.
             os.replace(upload.temporary_file_path(), stored_file(key))

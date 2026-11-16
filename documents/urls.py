@@ -6,6 +6,7 @@ urlpatterns = [
     path("workflow/", workflow_views.workflow_records, name="workflow_records"),
     path("workflow/new/", workflow_views.workflow_create, name="workflow_upload"),
     path("workflow/new/<int:pk>/", workflow_views.workflow_create, name="workflow_create"),
+    path("workflow/<int:pk>/edit/", workflow_views.workflow_edit, name="workflow_edit"),
     path("workflow/<int:pk>/file/", workflow_views.workflow_file, name="workflow_file"),
     path("workflow/<int:pk>/", workflow_views.workflow_detail, name="workflow_detail"),
     path("", views.workspace, name="workspace"),

@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth import get_user_model
-from django.contrib.auth.decorators import login_required, permission_required
+from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -26,7 +26,7 @@ TRANSITIONS = {
 
 
 def visible_records(user):
-    if user.has_perm("documents.manage_workflowrecord"):
+    if user.is_superuser:
         return WorkflowRecord.objects.all()
     return WorkflowRecord.objects.filter(
         Q(version__document__owner=user) | Q(recipient=user, events__state=State.REVIEW),
@@ -46,16 +46,23 @@ class RecipientForm(forms.ModelForm):
         ).order_by("username")
 
 
+class DetailsForm(forms.ModelForm):
+    class Meta:
+        model = WorkflowRecord
+        fields = ["title", "purpose", "description"]
+        labels = {"title": "Название", "purpose": "Назначение", "description": "Описание"}
+        widgets = {"purpose": forms.Textarea(attrs={"rows": 3}), "description": forms.Textarea(attrs={"rows": 3})}
+
+
 class RecordForm(RecipientForm):
     class Meta(RecipientForm.Meta):
         model = WorkflowRecord
         fields = ["title", "kind", "purpose", "description", "recipient"]
-        labels = {**RecipientForm.Meta.labels, "title": "Название", "kind": "Тип", "purpose": "Назначение", "description": "Описание"}
-        widgets = {"purpose": forms.Textarea(attrs={"rows": 3}), "description": forms.Textarea(attrs={"rows": 3})}
+        labels = {**DetailsForm.Meta.labels, **RecipientForm.Meta.labels, "kind": "Тип"}
+        widgets = DetailsForm.Meta.widgets
 
 
 @login_required
-@permission_required("documents.view_workflowrecord", raise_exception=True)
 @require_safe
 def workflow_records(request):
     records = visible_records(request.user).select_related("recipient", "version__document__owner").order_by("-updated_at", "-pk")
@@ -76,7 +83,6 @@ def workflow_records(request):
 
 
 @login_required
-@permission_required(("documents.view_workflowrecord", "documents.add_workflowrecord"), raise_exception=True)
 @require_http_methods(["GET", "POST"])
 def workflow_create(request, pk=None):
     version = get_object_or_404(Version.objects.select_related("document"), pk=pk,
@@ -107,7 +113,6 @@ def workflow_create(request, pk=None):
 
 
 @login_required
-@permission_required("documents.view_workflowrecord", raise_exception=True)
 @require_http_methods(["GET", "POST"])
 def workflow_detail(request, pk):
     records = visible_records(request.user).select_related("version__document__owner", "recipient")
@@ -116,7 +121,7 @@ def workflow_detail(request, pk):
             record = get_object_or_404(records, pk=pk)
             if not can_edit(request.user, record):
                 raise PermissionDenied
-            if request.POST.get("action") == "assign" and record.state == State.CREATED:
+            if request.POST.get("action") == "assign" and can_assign(request.user, record):
                 form = RecipientForm(record.version.document.owner, request.POST, instance=record)
                 if not form.is_valid():
                     return render_record(request, record, form)
@@ -130,6 +135,8 @@ def workflow_detail(request, pk):
             comment = request.POST.get("comment", "").strip()
             if target not in TRANSITIONS.get(record.state, ()):
                 return HttpResponseBadRequest("Недопустимый переход статуса.")
+            if target == State.REVIEW and (record.recipient is None or not record.recipient.is_active):
+                return HttpResponseBadRequest("Укажи получателя перед отправкой.")
             if len(comment) > 4000 or (target in (State.WITHDRAWN, State.REJECTED) and not comment):
                 return HttpResponseBadRequest("Укажи причину отклонения или отзыва, до 4000 символов.")
             previous = record.state
@@ -148,24 +155,64 @@ def workflow_detail(request, pk):
 
 
 def can_edit(user, record):
-    return user.has_perm("documents.change_workflowrecord") and (
-        record.version.document.owner_id == user.pk or user.has_perm("documents.manage_workflowrecord")
-    )
+    if user.is_superuser:
+        return True
+    if record.state == State.CREATED:
+        return record.version.document.owner_id == user.pk
+    return record.recipient_id == user.pk
 
 
-def render_record(request, record, form=None):
-    author = can_edit(request.user, record)
-    if form is None and author and record.state == State.CREATED:
+def can_assign(user, record):
+    return user.is_superuser or (record.state == State.CREATED and record.version.document.owner_id == user.pk)
+
+
+def render_record(request, record, form=None, details_form=None):
+    editable = can_edit(request.user, record)
+    if form is None and can_assign(request.user, record):
         form = RecipientForm(record.version.document.owner, instance=record)
+    if details_form is None and editable:
+        details_form = DetailsForm(instance=record)
     return render(request, "documents/workflow_detail.html", {
-        "recipient_form": form,
+        "recipient_form": form, "details_form": details_form,
         "record": record, "events": record.events.select_related("actor").order_by("pk"),
-        "transitions": [(state, state.label) for state in TRANSITIONS.get(record.state, ())] if author else [],
+        "transitions": [(state, state.label) for state in TRANSITIONS.get(record.state, ())] if editable else [],
     })
 
 
 @login_required
-@permission_required("documents.view_workflowrecord", raise_exception=True)
+@require_http_methods(["POST"])
+def workflow_edit(request, pk):
+    uploaded = None
+    try:
+        with transaction.atomic():
+            record = get_object_or_404(visible_records(request.user).select_related("version__document__owner", "recipient"), pk=pk)
+            if not can_edit(request.user, record):
+                raise PermissionDenied
+            form = DetailsForm(request.POST, instance=record)
+            if not form.is_valid():
+                return render_record(request, record, details_form=form)
+            changes = [form.fields[name].label for name in form.changed_data]
+            if request.FILES or getattr(request, "file_too_large", False):
+                if record.state not in (State.CREATED, State.REVIEW):
+                    return HttpResponseBadRequest("Замена файла доступна до завершения согласования.")
+                file = request_file(request, "Выбери файл документа.")
+                uploaded = save_version(record.version.document.owner, file, document=record.version.document)
+                record.version = uploaded
+                changes.append(f"Файл (версия {uploaded.number})")
+            if changes:
+                form.save()
+                record.events.create(actor=request.user, state=record.state, comment="Изменено: " + ", ".join(changes))
+    except ValueError as exc:
+        form.add_error(None, str(exc))
+        return render_record(request, record, details_form=form)
+    except BaseException:
+        if uploaded:
+            remove_files([uploaded.key])
+        raise
+    return redirect("workflow_detail", pk)
+
+
+@login_required
 @require_safe
 def workflow_file(request, pk):
     record = get_object_or_404(visible_records(request.user).select_related("version"), pk=pk)
