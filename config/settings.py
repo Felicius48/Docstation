@@ -46,7 +46,7 @@ if os.environ.get("DOCSTATION_BEHIND_HTTPS_PROXY") == "1":
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 INSTALLED_APPS = [
-    "django.contrib.auth", "django.contrib.contenttypes", "django.contrib.sessions",
+    "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes", "django.contrib.sessions",
     "django.contrib.messages", "django.contrib.staticfiles", "documents",
 ]
 MIDDLEWARE = [

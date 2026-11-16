@@ -1,7 +1,7 @@
 {% extends 'documents/base.html' %}
 {% block title %}ЭДО · DocStation{% endblock %}
 {% block content %}
-<div class="intro"><h1>Документооборот</h1><p><a class="button primary" href="{% url 'workflow_upload' %}">Создать карточку</a></p></div>
+<div class="intro"><h1>Документооборот</h1><p>{% if perms.documents.view_workflowrecord and perms.documents.add_workflowrecord %}<a class="button primary" href="{% url 'workflow_upload' %}">Создать карточку</a>{% endif %}</p></div>
 <form class="panel version approval-form" method="get" role="search">
   <div class="options">
     <label>Поиск<input name="q" value="{{ query }}" placeholder="Название, назначение или номер"></label>

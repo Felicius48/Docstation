@@ -1,8 +1,10 @@
 from django.contrib.auth import views as auth
 from django.urls import include, path
+from documents.account_admin import account_admin
 from documents.auth_views import AccountView, registration_settings
 
 urlpatterns = [
+    path("manage/", account_admin.urls),
     path("login/", AccountView.as_view(), name="login"),
     path("invite/<uuid:token>/", AccountView.as_view(), name="register_invited"),
     path("registration/", registration_settings, name="registration_settings"),

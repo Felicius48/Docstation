@@ -1,6 +1,7 @@
 from contextlib import closing
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -9,10 +10,14 @@ from .models import Document, Version, WorkflowRecord
 
 
 class WorkflowTests(TestCase):
+    def user(self, username, role="Сотрудник"):
+        user = get_user_model().objects.create_user(username)
+        user.groups.add(Group.objects.get(name=role))
+        return user
+
     def test_registry_lifecycle_audit_and_owner_boundary(self):
-        users = get_user_model().objects
-        owner = users.create_user("author")
-        outsider = users.create_user("outsider")
+        owner = self.user("author")
+        outsider = self.user("outsider")
         document = Document.objects.create(owner=owner, title="Договор")
         version = Version.objects.create(document=document, number=1, name="contract.txt", size=10)
         create = reverse("workflow_create", args=[version.pk])
@@ -49,10 +54,9 @@ class WorkflowTests(TestCase):
 
         from .storage import stored_file
 
-        users = get_user_model().objects
-        author = users.create_user("sender")
-        reader = users.create_user("receiver")
-        stranger = users.create_user("stranger")
+        author = self.user("sender")
+        reader = self.user("receiver")
+        stranger = self.user("stranger")
         document = Document.objects.create(owner=author, title="Поручение")
         version = Version.objects.create(document=document, number=1, name="task.txt", size=4)
         self.client.force_login(author)
@@ -89,7 +93,7 @@ class WorkflowTests(TestCase):
 
         from django.core.files.uploadedfile import SimpleUploadedFile
 
-        actor = get_user_model().objects.create_user("uploader")
+        actor = self.user("uploader")
         self.client.force_login(actor)
         for retired in ("/archive/", "/approvals/"):
             self.assertEqual(self.client.get(retired).status_code, 404)
@@ -108,3 +112,32 @@ class WorkflowTests(TestCase):
                 self.assertRedirects(response, reverse("workflow_detail", args=[record.pk]))
                 with closing(self.client.get(reverse("workflow_file", args=[record.pk]))) as result:
                     self.assertEqual(b"".join(result.streaming_content), b"test")
+
+    def test_admin_panel_and_workflow_permissions_are_separate(self):
+        from django.core.management import call_command
+
+        author = self.user("author")
+        observer = self.user("observer", "Наблюдатель")
+        manager = self.user("manager", "Администратор ЭДО")
+        version = Version.objects.create(
+            document=Document.objects.create(owner=author, title="Test"), number=1, name="test.txt", size=4,
+        )
+        record = WorkflowRecord.objects.create(version=version, title="Test", kind="ЗАЯ", purpose="Check")
+        detail = reverse("workflow_detail", args=[record.pk])
+        admin = reverse("account_admin:index")
+        self.client.force_login(observer)
+        self.assertEqual(self.client.get(reverse("workflow_records")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("workflow_upload")).status_code, 403)
+        self.assertEqual(self.client.get(detail).status_code, 404)
+        self.assertEqual(self.client.get(admin, follow=True).status_code, 403)
+        self.client.force_login(manager)
+        self.assertEqual(self.client.get(detail).status_code, 200)
+        self.assertRedirects(self.client.post(detail, {"state": "review"}), detail)
+        self.assertEqual(self.client.get(admin, follow=True).status_code, 403)
+        alex = self.user("alex")
+        call_command("grant_admin", alex.username)
+        alex.refresh_from_db()
+        self.assertTrue(alex.is_superuser and alex.is_staff)
+        self.client.force_login(alex)
+        for page in (admin, reverse("account_admin:auth_user_changelist"), reverse("account_admin:auth_group_changelist")):
+            self.assertEqual(self.client.get(page).status_code, 200)

@@ -8,6 +8,7 @@ from uuid import uuid4
 from zipfile import ZipFile
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group, Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.db import connection
@@ -89,7 +90,7 @@ class RegistrationTests(TestCase):
     def test_owner_closes_registration_and_invitation_is_single_use(self):
         login_url = reverse("login")
         settings_url = reverse("registration_settings")
-        owner = get_user_model().objects.create_user("owner")
+        owner = get_user_model().objects.create_superuser("owner", password="Local!Admin42")
         RegistrationPolicy.objects.update(owner=owner, public=True)
         self.client.force_login(owner)
         self.assertRedirects(self.client.post(settings_url, {"action": "close"}), settings_url)
@@ -119,6 +120,11 @@ class ArchiveWorkflowTests(TransactionTestCase):
         self.upload_dir = root / "uploads"
         self.enterContext(override_settings(DATA_DIR=root, FILE_UPLOAD_TEMP_DIR=self.upload_dir))
         self.owner = get_user_model().objects.create_user("owner")
+        role, _ = Group.objects.get_or_create(name="Сотрудник")
+        role.permissions.add(*Permission.objects.filter(
+            content_type__app_label="documents", codename__in=["view_workflowrecord", "add_workflowrecord"],
+        ))
+        self.owner.groups.add(role)
         self.client.force_login(self.owner)
 
     @override_settings(MAX_ARCHIVE_BYTES=5, MAX_PENDING_JOBS=1)

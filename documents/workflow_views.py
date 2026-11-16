@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth import get_user_model
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, permission_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -26,6 +26,8 @@ TRANSITIONS = {
 
 
 def visible_records(user):
+    if user.has_perm("documents.manage_workflowrecord"):
+        return WorkflowRecord.objects.all()
     return WorkflowRecord.objects.filter(
         Q(version__document__owner=user) | Q(recipient=user, events__state=State.REVIEW),
     ).distinct()
@@ -53,6 +55,7 @@ class RecordForm(RecipientForm):
 
 
 @login_required
+@permission_required("documents.view_workflowrecord", raise_exception=True)
 @require_safe
 def workflow_records(request):
     records = visible_records(request.user).select_related("recipient", "version__document__owner").order_by("-updated_at", "-pk")
@@ -73,6 +76,7 @@ def workflow_records(request):
 
 
 @login_required
+@permission_required(("documents.view_workflowrecord", "documents.add_workflowrecord"), raise_exception=True)
 @require_http_methods(["GET", "POST"])
 def workflow_create(request, pk=None):
     version = get_object_or_404(Version.objects.select_related("document"), pk=pk,
@@ -103,16 +107,17 @@ def workflow_create(request, pk=None):
 
 
 @login_required
+@permission_required("documents.view_workflowrecord", raise_exception=True)
 @require_http_methods(["GET", "POST"])
 def workflow_detail(request, pk):
     records = visible_records(request.user).select_related("version__document__owner", "recipient")
     if request.method == "POST":
         with transaction.atomic():
             record = get_object_or_404(records, pk=pk)
-            if record.version.document.owner_id != request.user.pk:
+            if not can_edit(request.user, record):
                 raise PermissionDenied
             if request.POST.get("action") == "assign" and record.state == State.CREATED:
-                form = RecipientForm(request.user, request.POST, instance=record)
+                form = RecipientForm(record.version.document.owner, request.POST, instance=record)
                 if not form.is_valid():
                     return render_record(request, record, form)
                 if form.has_changed():
@@ -142,10 +147,16 @@ def workflow_detail(request, pk):
     return render_record(request, record)
 
 
+def can_edit(user, record):
+    return user.has_perm("documents.change_workflowrecord") and (
+        record.version.document.owner_id == user.pk or user.has_perm("documents.manage_workflowrecord")
+    )
+
+
 def render_record(request, record, form=None):
-    author = record.version.document.owner_id == request.user.pk
+    author = can_edit(request.user, record)
     if form is None and author and record.state == State.CREATED:
-        form = RecipientForm(request.user, instance=record)
+        form = RecipientForm(record.version.document.owner, instance=record)
     return render(request, "documents/workflow_detail.html", {
         "recipient_form": form,
         "record": record, "events": record.events.select_related("actor").order_by("pk"),
@@ -154,6 +165,7 @@ def render_record(request, record, form=None):
 
 
 @login_required
+@permission_required("documents.view_workflowrecord", raise_exception=True)
 @require_safe
 def workflow_file(request, pk):
     record = get_object_or_404(visible_records(request.user).select_related("version"), pk=pk)
