@@ -12,7 +12,7 @@
       {% endfor %}
     </nav>
   </div>
-  <section class="panel converter" id="converter" aria-labelledby="converter-title" data-section="{{ section }}" data-batch-url="{% url 'new_batch' %}" data-archive-url="{% url 'archive' %}" data-preview-url="{% url 'new_compression_preview' %}" {% if selected %}data-version="{{ selected.pk }}" data-version-name="{{ selected.name }}" data-version-url="{% url 'download_version' selected.pk %}"{% endif %}>
+  <section class="panel converter" id="converter" aria-labelledby="converter-title" data-section="{{ section }}" data-batch-url="{% url 'new_batch' %}" data-preview-url="{% url 'new_compression_preview' %}" {% if selected %}data-version="{{ selected.pk }}" data-version-name="{{ selected.name }}" data-version-url="{% url 'download_version' selected.pk %}"{% endif %}>
     <h2 class="converter-title" id="converter-title">{{ section_title }}</h2>
     <form id="conversion-form">
       {% csrf_token %}
@@ -42,7 +42,6 @@
       <ol class="file-list" id="file-list" aria-label="Выбранные файлы" aria-live="polite" tabindex="0" hidden></ol>
       <p id="form-status" class="form-status" role="status" hidden></p>
       <div class="form-footer">
-        <button type="button" class="button secondary" id="archive-only" disabled><svg><use href="#folder"/></svg> В архив</button>
         <button class="button primary" id="run" type="submit" disabled>Запустить обработку <svg><use href="#arrow"/></svg></button>
       </div>
     </form>
@@ -78,12 +77,5 @@
     </div>
   </div>
 </dialog>
-<section class="recent">
-  <div class="section-head"><h2>Недавние документы</h2><a href="{% url 'archive' %}">Открыть архив <svg><use href="#arrow"/></svg></a></div>
-  <div class="panel recent-list">
-    {% for document in recent %}<a class="row" href="{% url 'document_detail' document.pk %}"><span class="file-icon"><svg><use href="#logo"/></svg></span><span class="row-main"><b>{{ document.title }}</b><small>{{ document.updated_at|date:"d.m.Y · H:i" }}</small></span><svg><use href="#arrow"/></svg></a>
-    {% empty %}<div class="empty"><span class="file-icon"><svg><use href="#folder"/></svg></span><div><b>Архив пока пуст</b><p>Загруженные файлы появятся здесь.</p></div></div>{% endfor %}
-  </div>
-</section>
 {{ file_rules|json_script:"file-rules" }}
 {% endblock %}

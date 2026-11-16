@@ -12,7 +12,6 @@ if (converter) {
   const strength = form.elements.strength;
   const compressionValue = document.querySelector("#compression-value");
   const run = document.querySelector("#run");
-  const archiveOnly = document.querySelector("#archive-only");
   const rules = JSON.parse(document.querySelector("#file-rules").textContent);
   const matrix = rules.targets;
   const targets = Array.from(target.options);
@@ -219,7 +218,6 @@ if (converter) {
     run.disabled = busy || !files.length || !files.some((item) => compatible(item.name));
     run.firstChild.textContent = operation.value === "extract" && files.some((item) => !item.pages)
       ? "Выбрать страницы " : "Запустить обработку ";
-    archiveOnly.disabled = busy || !files.some((item) => item.file && !item.id);
     scheduleCompressionPreview();
   }
 
@@ -349,15 +347,15 @@ if (converter) {
     });
   }
 
-  async function send(saveOnly) {
+  async function send() {
     if (busy || pickingPages) return;
     const grouped = rules.grouped.includes(operation.value);
-    if (!saveOnly && grouped && (files.some((item) => !compatible(item.name)) ||
+    if (grouped && (files.some((item) => !compatible(item.name)) ||
         (operation.value === "merge" && files.length < 2))) {
       message("Проверь тип файлов и их количество для этой операции.", "error");
       return;
     }
-    if (!saveOnly && operation.value === "extract") {
+    if (operation.value === "extract") {
       const unselected = files.find((item) => !item.pages);
       if (unselected) {
         await selectPdfPages(unselected);
@@ -386,7 +384,7 @@ if (converter) {
       }
       const uploaded = files.filter((item) => item.id);
       const failed = files.filter((item) => !item.id);
-      if (!saveOnly && grouped && failed.length) {
+      if (grouped && failed.length) {
         message("Не загрузились: " + failed.map((item) => item.name).join(", ") + ". Для этой операции нужны все файлы. Повтори загрузку или убери их из списка.", "error");
         return;
       }
@@ -394,8 +392,7 @@ if (converter) {
         message("Не удалось загрузить файлы. Повтори попытку или убери их из списка.", "error");
         return;
       }
-      const url = saveOnly ? converter.dataset.archiveUrl
-        : (await post(batch.submit, {
+      const url = (await post(batch.submit, {
           ...options,
           versions: uploaded.map((item) => item.id),
           ...(options.operation === "extract" ? {
@@ -408,7 +405,7 @@ if (converter) {
       if (failed.length) {
         const link = document.createElement("a");
         link.href = url;
-        link.textContent = saveOnly ? "Открыть архив" : "Открыть обработку загруженных файлов";
+        link.textContent = "Открыть обработку загруженных файлов";
         link.className = "partial-result-link";
         const description = "Не загрузились: " + failed.map((item) => item.name).join(", ") + ". ";
         message(description, "error");
@@ -456,18 +453,11 @@ if (converter) {
       switchSection(button.dataset.section);
     });
   }
-  archiveOnly.addEventListener("click", () => send(true));
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    send(false);
+    send();
   });
   showSection(section);
-}
-
-for (const form of document.querySelectorAll("[data-confirm]")) {
-  form.addEventListener("submit", (event) => {
-    if (!window.confirm(form.dataset.confirm)) event.preventDefault();
-  });
 }
 
 async function refreshJobs() {

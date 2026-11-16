@@ -12,15 +12,15 @@ GROUPED = {"merge", "images_pdf"}
 PDF_TOOLS = {"merge", "split", "extract", "compress", "pdf_word", "pdf_tables"}
 
 TOOLS = {
-    "convert": ("Конвертация", "Из одного формата в другой", "arrows"),
-    "markdown": ("В Markdown", "Текст, таблицы и изображения", "markdown"),
-    "merge": ("Объединить PDF", "Несколько файлов в один PDF", "merge"),
-    "split": ("Разделить PDF", "Каждая страница отдельным файлом", "split"),
-    "extract": ("Извлечь страницы", "Выбранные страницы в новый PDF", "pages"),
-    "compress": ("Сжать PDF", "Уменьшить размер файла", "compress"),
-    "pdf_word": ("PDF в Word", "Текстовый PDF в DOCX", "word"),
-    "pdf_tables": ("Таблицы в Excel", "Из текстового PDF в XLSX", "table"),
-    "images_pdf": ("Фото в PDF", "Изображения в один документ", "image"),
+    "convert": "Конвертация",
+    "markdown": "В Markdown",
+    "merge": "Объединить PDF",
+    "split": "Разделить PDF",
+    "extract": "Извлечь страницы",
+    "compress": "Сжать PDF",
+    "pdf_word": "PDF в Word",
+    "pdf_tables": "Таблицы в Excel",
+    "images_pdf": "Фото в PDF",
 }
 
 OFFICE_FORMATS = set.union(*OFFICE)
@@ -79,7 +79,7 @@ def file_rules(max_files, max_bytes):
         },
         "grouped": sorted(GROUPED),
         "sections": {
-            key: {"formats": sorted(formats), "tools": {tool: TOOLS[tool][0] for tool in tools}}
+            key: {"formats": sorted(formats), "tools": {tool: TOOLS[tool] for tool in tools}}
             for key, (_, _, formats, tools) in WORKSPACE_SECTIONS.items()
         },
         "maxFiles": max_files,

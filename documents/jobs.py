@@ -9,7 +9,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import F
 
-from .archive import check_archive_quota
+from .version_storage import check_archive_quota
 from .conversion import ConversionError, convert
 from .models import Batch, Job, JobInput, Result, Version
 from .operations import GROUPED, TOOLS, extension, supports

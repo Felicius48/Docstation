@@ -165,6 +165,10 @@ class WorkflowRecord(models.Model):
         WITHDRAWN = "withdrawn", "Отозван"
 
     version = models.ForeignKey(Version, on_delete=models.PROTECT)
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="received_workflow_records",
+    )
     title = models.CharField(max_length=255)
     kind = models.CharField(max_length=3, choices=Kind.choices)
     purpose = models.TextField(max_length=4000)

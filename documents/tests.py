@@ -66,8 +66,8 @@ class RegistrationTests(TestCase):
         self.assertEqual(int(self.client.session["_auth_user_id"]), user.pk)
         self.client.post(reverse("logout"))
         self.assertRedirects(self.client.post(url, {
-            "username": user.username, "password": self.credentials["password1"], "next": reverse("archive"),
-        }), reverse("archive"))
+            "username": user.username, "password": self.credentials["password1"], "next": reverse("history"),
+        }), reverse("history"))
 
     def test_registration_requires_csrf_and_rejects_invalid_credentials(self):
         url = reverse("login")
@@ -151,16 +151,9 @@ class ArchiveWorkflowTests(TransactionTestCase):
         with closing(response):
             return b"".join(response.streaming_content)
 
-    def test_versions_stay_private_and_deleting_one_removes_its_results(self):
+    def test_versions_and_results_stay_private(self):
         batch = self.new_batch()
         first = self.upload(batch, "notes.txt", "Первая версия".encode()).json()["id"]
-        document = Document.objects.get()
-        response = self.client.post(reverse("add_version", args=[document.pk]), {
-            "file": SimpleUploadedFile("notes.txt", "Вторая версия".encode()),
-        })
-        self.assertEqual(response.status_code, 302)
-        second = document.versions.first()
-        self.assertEqual(second.number, 2)
         self.assertEqual(self.download(reverse("download_version", args=[first])), "Первая версия".encode())
 
         submission = self.submit(batch, "markdown", [first])
@@ -170,9 +163,10 @@ class ArchiveWorkflowTests(TransactionTestCase):
         call_command("worker", "--once", stdout=StringIO())
         job = Job.objects.get()
         result = job.results.get()
-        self.assertContains(self.client.get(reverse("archive")), "notes.txt")
-        detail = self.client.get(reverse("document_detail", args=[document.pk]))
+        detail = self.client.get(submission.json()["url"])
         self.assertContains(detail, reverse("download_result", args=[result.pk]))
+        self.assertContains(detail, reverse("download_version", args=[first]))
+        self.assertContains(detail, reverse("workflow_create", args=[first]))
         with ZipFile(BytesIO(self.download(reverse("download_result", args=[result.pk])))) as markdown:
             self.assertEqual(markdown.read("document.md").decode(), "Первая версия")
 
@@ -186,12 +180,6 @@ class ArchiveWorkflowTests(TransactionTestCase):
             self.assertEqual(self.client.get(url).status_code, 404)
         self.assertEqual(self.submit(self.new_batch(), "markdown", [first]).status_code, 404)
         self.client.force_login(self.owner)
-
-        first_key = Version.objects.get(pk=first).key
-        self.client.post(reverse("delete_version", args=[document.pk, first]))
-        self.assertFalse(stored_file(first_key).exists())
-        self.assertFalse(stored_file(result.key).exists())
-        self.assertEqual(self.download(reverse("download_version", args=[second.pk])), "Вторая версия".encode())
 
     def test_worker_recovers_pending_jobs_and_exports_pdf(self):
         image = BytesIO()
@@ -353,170 +341,10 @@ class ArchiveWorkflowTests(TransactionTestCase):
                 self.assertTrue(response["Content-Disposition"].startswith("inline"))
                 self.assertEqual(response["Cache-Control"], "private, no-store")
         self.assertEqual(self.client.get(reverse("preview_version", args=[unsupported])).status_code, 404)
-        document = Version.objects.get(pk=version).document
-        detail = self.client.get(reverse("document_detail", args=[document.pk]))
-        for url in urls:
-            self.assertContains(detail, url)
         self.assertContains(self.client.get(reverse("batch_detail", args=[result.job.batch_id])), urls[1])
         self.client.force_login(get_user_model().objects.create_user("preview-other"))
         for url in urls:
             self.assertEqual(self.client.get(url).status_code, 404)
-
-    def test_archive_filters_match_the_same_version_and_completed_job(self):
-        from django.utils import timezone
-
-        batch = self.new_batch()
-        pdf = self.upload(batch, "match.PDF", b"%PDF-test").json()["id"]
-        other = self.upload(batch, "queued.pdf", b"%PDF-test").json()["id"]
-        self.submit(batch, "compress", [pdf, other], strength=50)
-        job = Job.objects.get(inputs__version_id=pdf)
-        job.state = Job.State.DONE
-        job.save(update_fields=["state"])
-        day = timezone.localtime(job.created_at).date().isoformat()
-        url = reverse("archive")
-        filters = {"format": "pdf", "operation": "compress", "start": day, "end": day}
-        response = self.client.get(url, filters)
-        self.assertContains(response, "match.PDF")
-        self.assertNotContains(response, "queued.pdf")
-        self.assertNotContains(self.client.get(url, {**filters, "format": "png"}), "match.PDF")
-        self.assertNotContains(self.client.get(url, {**filters, "start": "2000-01-01", "end": "2000-01-01"}), "match.PDF")
-        self.assertContains(self.client.get(url, {"start": day, "end": "2000-01-01"}), "Начальная дата")
-
-    def test_new_approval_can_upload_its_first_version(self):
-        from .models import Approval, ApprovalRound
-
-        reviewer = get_user_model().objects.create_user("upload-reviewer")
-        url = reverse("approval_upload")
-        data = {"title": "Новый документ", "reviewers": [reviewer.pk]}
-        self.assertContains(self.client.get(reverse("approvals")), url)
-        self.assertContains(self.client.post(url, data), "Выбери файл")
-        self.assertFalse(Document.objects.exists())
-        self.assertContains(self.client.post(url, {
-            **data, "file": SimpleUploadedFile("unknown.xyz", b"data"),
-        }), "формат пока не поддерживается")
-        self.assertFalse(Document.objects.exists())
-        response = self.client.post(url, {
-            **data, "file": SimpleUploadedFile("notes.txt", b"draft"),
-        })
-        approval = Approval.objects.get()
-        cycle = approval.rounds.get()
-        self.assertRedirects(response, reverse("approval_detail", args=[approval.pk]))
-        self.assertEqual(approval.document.owner, self.owner)
-        self.assertEqual(cycle.version.number, 1)
-        self.assertEqual(cycle.state, ApprovalRound.State.DRAFT)
-        self.assertEqual(cycle.decisions.get().reviewer, reviewer)
-        self.assertEqual(self.download(reverse("approval_file", args=[cycle.pk])), b"draft")
-        card = self.client.get(reverse("approval_detail", args=[approval.pk]))
-        preview_url = reverse("approval_preview", args=[cycle.pk])
-        self.assertContains(card, 'data-inline-preview="' + preview_url + '"')
-        self.assertContains(card, "text/plain")
-        with closing(self.client.get(preview_url)) as response:
-            self.assertEqual(response.status_code, 200)
-            self.assertTrue(response["Content-Type"].startswith("text/plain"))
-            self.assertEqual(b"".join(response.streaming_content), b"draft")
-        self.client.force_login(reviewer)
-        self.assertEqual(self.client.get(preview_url).status_code, 404)
-        self.client.force_login(self.owner)
-        self.client.post(reverse("approval_detail", args=[approval.pk]), {"round": cycle.pk, "action": "send"})
-        self.client.force_login(reviewer)
-        self.assertContains(self.client.get(reverse("approval_detail", args=[approval.pk])), preview_url)
-        with closing(self.client.get(preview_url)) as response:
-            self.assertEqual(b"".join(response.streaming_content), b"draft")
-
-
-    def test_discard_draft_releases_archived_version(self):
-        from .models import Approval
-
-        reviewer = get_user_model().objects.create_user("discard-reviewer")
-        self.client.post(reverse("approval_upload"), {
-            "title": "Черновик", "reviewers": [reviewer.pk],
-            "file": SimpleUploadedFile("draft.txt", b"draft"),
-        })
-        approval = Approval.objects.get()
-        cycle = approval.rounds.get()
-        version = cycle.version
-        url = reverse("approval_detail", args=[approval.pk])
-        data = {"round": cycle.pk, "action": "discard"}
-        self.assertContains(self.client.get(url), "Удалить черновик")
-        self.client.force_login(reviewer)
-        self.assertEqual(self.client.post(url, data).status_code, 404)
-        self.client.force_login(self.owner)
-        self.assertRedirects(self.client.post(url, data), reverse("approval_status", args=["draft"]))
-        self.assertFalse(Approval.objects.exists())
-        self.assertEqual(self.download(reverse("download_version", args=[version.pk])), b"draft")
-        self.client.post(reverse("delete_version", args=[version.document_id, version.pk]))
-        self.assertFalse(Version.objects.filter(pk=version.pk).exists())
-
-    def test_approval_return_revision_and_file_access(self):
-        from .models import Approval, ApprovalRound
-
-        first = get_user_model().objects.create_user("reviewer-a")
-        second = get_user_model().objects.create_user("reviewer-b")
-        outsider = get_user_model().objects.create_user("outsider")
-        reviewers = [first.pk, second.pk]
-        version = self.upload(self.new_batch(), "policy.pdf", b"%PDF-test").json()["id"]
-        document = Version.objects.get(pk=version).document
-        self.client.post(reverse("approval_new", args=[version]), {
-            "title": "Policy", "version": version, "reviewers": reviewers,
-        })
-        approval = Approval.objects.get()
-        url = reverse("approval_detail", args=[approval.pk])
-        cycle = approval.rounds.get()
-        file_url = reverse("approval_file", args=[cycle.pk])
-
-        def act(user, cycle, action, **extra):
-            self.client.force_login(user)
-            return self.client.post(url, {"round": cycle.pk, "action": action, **extra})
-
-        self.client.force_login(first)
-        self.assertEqual(self.client.get(file_url).status_code, 404)
-        self.assertEqual(act(self.owner, cycle, "send").status_code, 302)
-        self.client.force_login(first)
-        self.assertEqual(self.download(file_url), b"%PDF-test")
-        self.assertEqual(act(first, cycle, "approve").status_code, 302)
-        self.assertEqual(act(first, cycle, "approve").status_code, 400)
-        self.assertContains(act(second, cycle, "return"), "Укажите причину")
-        self.assertEqual(act(second, cycle, "return", comment="Исправить").status_code, 302)
-        cycle.refresh_from_db()
-        self.assertEqual(cycle.state, ApprovalRound.State.RETURNED)
-
-        self.client.force_login(self.owner)
-        card = self.client.get(url)
-        self.assertContains(card, "Согласовали 1 из 2")
-        self.assertContains(card, "Причина возврата")
-        self.assertEqual(act(second, cycle, "upload_revision",
-                             file=SimpleUploadedFile("policy.pdf", b"%PDF-revised")).status_code, 400)
-        self.assertEqual(document.versions.count(), 1)
-        self.assertEqual(act(self.owner, cycle, "upload_revision",
-                             file=SimpleUploadedFile("policy.pdf", b"%PDF-revised")).status_code, 302)
-        revised = document.versions.first()
-        self.assertEqual(self.client.get(url).context["form"].initial["version"], revised)
-        self.assertEqual(act(self.owner, cycle, "revise", version=revised.pk, reviewers=reviewers).status_code, 302)
-        latest = approval.rounds.last()
-        self.assertRedirects(act(self.owner, latest, "discard"), url)
-        self.assertEqual(list(approval.rounds.values_list("pk", flat=True)), [cycle.pk])
-        self.assertEqual(act(self.owner, cycle, "discard").status_code, 400)
-        self.assertEqual(act(self.owner, cycle, "revise", version=revised.pk, reviewers=reviewers).status_code, 302)
-        latest = approval.rounds.last()
-        self.assertEqual(act(self.owner, latest, "send").status_code, 302)
-        self.assertEqual(act(first, latest, "approve").status_code, 302)
-        self.assertEqual(act(second, latest, "approve").status_code, 302)
-        latest.refresh_from_db()
-        self.assertEqual(latest.state, ApprovalRound.State.APPROVED)
-        card = self.client.get(url)
-        self.assertContains(card, "Исправить")
-        self.assertContains(card, "Версия добавлена в архив", count=2)
-        self.assertContains(card, "Создан черновик", count=2)
-        history = card.content.decode().split('class="approval-timeline"', 1)[1]
-        self.assertLess(history.index("Согласовано"), history.index("Исправить"))
-        self.assertLess(history.index("Исправить"), history.index("Версия 2"))
-        self.client.force_login(outsider)
-        self.assertEqual(self.client.get(url).status_code, 404)
-        self.assertEqual(self.client.get(file_url).status_code, 404)
-        self.assertEqual(self.client.get(reverse("approval_preview", args=[latest.pk])).status_code, 404)
-        self.client.force_login(self.owner)
-        self.client.post(reverse("delete_version", args=[document.pk, version]))
-        self.assertTrue(Version.objects.filter(pk=version).exists())
 
     def test_batch_limit_and_partial_failures(self):
         batch = self.new_batch()
@@ -597,15 +425,13 @@ class ArchiveWorkflowTests(TransactionTestCase):
         self.assertEqual(self.client.post(reverse("retry", args=[queued.pk])).status_code, 302)
         queued.refresh_from_db()
         self.assertEqual(queued.state, Job.State.FAILED)
-        self.assertContains(self.client.get(submission.json()["url"]), "Операция из архива")
+        self.assertContains(self.client.get(submission.json()["url"]), "Старая операция")
         self.assertTrue(self.download(reverse("download_result", args=[completed.results.get().pk])))
 
     def test_pages_render_for_authenticated_user(self):
-        for route in ("workspace", "archive", "history"):
+        for route in ("workspace", "history", "workflow_records"):
             self.assertEqual(self.client.get(reverse(route)).status_code, 200)
         version = self.upload(self.new_batch(), "notes.txt", b"example").json()["id"]
-        document = Version.objects.get(pk=version).document
-        self.assertContains(self.client.get(reverse("document_detail", args=[document.pk])), "notes.txt")
 
         workspace = self.client.get(reverse("workspace"))
         sections = workspace.context["file_rules"]["sections"]

@@ -1,24 +1,14 @@
 from django.urls import path
 
-from . import approval_views, views, workflow_views
+from . import views, workflow_views
 
 urlpatterns = [
     path("workflow/", workflow_views.workflow_records, name="workflow_records"),
+    path("workflow/new/", workflow_views.workflow_create, name="workflow_upload"),
     path("workflow/new/<int:pk>/", workflow_views.workflow_create, name="workflow_create"),
+    path("workflow/<int:pk>/file/", workflow_views.workflow_file, name="workflow_file"),
     path("workflow/<int:pk>/", workflow_views.workflow_detail, name="workflow_detail"),
-    path("approvals/", approval_views.approvals, name="approvals"),
-    path("approvals/status/<slug:status>/", approval_views.approvals, name="approval_status"),
-    path("approvals/new/", approval_views.approval_new, name="approval_upload"),
-    path("approvals/new/<int:pk>/", approval_views.approval_new, name="approval_new"),
-    path("approvals/<int:pk>/", approval_views.approval_detail, name="approval_detail"),
-    path("approvals/file/<int:pk>/", approval_views.approval_file, name="approval_file"),
-    path("approvals/file/<int:pk>/preview/", approval_views.approval_file, {"preview": True}, name="approval_preview"),
     path("", views.workspace, name="workspace"),
-    path("archive/", views.archive, name="archive"),
-    path("archive/<int:pk>/", views.document_detail, name="document_detail"),
-    path("archive/<int:pk>/version/", views.add_version, name="add_version"),
-    path("archive/<int:pk>/delete/", views.delete, name="delete_document"),
-    path("archive/<int:pk>/delete/<int:version_pk>/", views.delete, name="delete_version"),
     path("history/", views.history, name="history"),
     path("history/<int:pk>/", views.batch_detail, name="batch_detail"),
     path("history/<int:pk>/zip/", views.download_batch, name="download_batch"),

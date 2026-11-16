@@ -7,13 +7,22 @@
   <p>{{ record.get_kind_display }} · {{ record.get_state_display }}</p>
 </div>
 <section class="panel version approval-form">
+  <p>Автор: {{ record.version.document.owner.get_username }}</p>
+  <p>Кому направлен: {% if record.recipient %}{{ record.recipient.get_username }}{% else %}Получатель не указан{% endif %}</p>
   <h2>Назначение</h2>
   <p class="preview-text">{{ record.purpose }}</p>
   {% if record.description %}<h2>Описание</h2><p class="preview-text">{{ record.description }}</p>{% endif %}
   <p>Создана {{ record.created_at|date:"d.m.Y H:i" }} · обновлена {{ record.updated_at|date:"d.m.Y H:i" }}</p>
   {% if record.registered_at %}<p>Регистрация {{ record.registration_number }} от {{ record.registered_at|date:"d.m.Y" }}</p>{% endif %}
-  <a class="button secondary" href="{% url 'download_version' record.version_id %}">Скачать версию {{ record.version.number }}</a>
+  <a class="button secondary" href="{% url 'workflow_file' record.pk %}">Скачать версию {{ record.version.number }}</a>
 </section>
+{% if recipient_form %}
+<form class="panel version approval-form" method="post">
+  {% csrf_token %}
+  {{ recipient_form.as_p }}
+  <button class="button secondary" name="action" value="assign">Сохранить получателя</button>
+</form>
+{% endif %}
 {% if transitions %}
 <form class="panel version approval-form" method="post">
   {% csrf_token %}

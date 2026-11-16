@@ -1,9 +1,10 @@
 {% extends 'documents/base.html' %}
 {% block title %}Новая карточка ЭДО · DocStation{% endblock %}
 {% block content %}
-<div class="intro detail-intro"><a class="back" href="{% url 'document_detail' version.document_id %}">← К документу</a><h1>Новая карточка ЭДО</h1><p>{{ version.name }} · версия {{ version.number }}</p></div>
-<form class="panel version approval-form" method="post">
+<div class="intro detail-intro"><a class="back" href="{% url 'workflow_records' %}">← К карточкам ЭДО</a><h1>Новая карточка ЭДО</h1>{% if version %}<p>{{ version.name }} · версия {{ version.number }}</p>{% endif %}</div>
+<form class="panel version approval-form" method="post" {% if not version %}enctype="multipart/form-data"{% endif %}>
   {% csrf_token %}
+  {% if not version %}<label>Файл документа<input type="file" name="file" required></label>{% endif %}
   {{ form.as_p }}
   <button class="button primary">Создать карточку</button>
 </form>

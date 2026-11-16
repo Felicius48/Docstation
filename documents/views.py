@@ -6,16 +6,15 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
-from django.db.models import Count, Exists, OuterRef, Prefetch, Q
+from django.db.models import Count
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods, require_POST
 
-from .archive import VersionBusyError, delete_versions, save_version
-from .archive_filters import ArchiveFilters
+from .version_storage import save_version
 from .jobs import can_retry, enqueue, requeue
-from .models import Batch, CompressionPreview, Document, Job, JobInput, Result, Version
+from .models import Batch, CompressionPreview, Job, Result, Version
 from .operations import TARGETS, TOOLS, WORKSPACE_SECTIONS, compression_strength, file_rules, validate_submission, workspace_section
 from .previews import create_preview, requeue_preview
 from .storage import stored_file, zip_files
@@ -36,61 +35,8 @@ def workspace(request):
     return render(request, "documents/workspace.html", {
         "selected": selected,
         "section": section, "sections": WORKSPACE_SECTIONS, "section_title": title,
-        "tools": [(key, TOOLS[key][0]) for key in operations], "targets": TARGETS,
-        "recent": Document.objects.filter(owner=request.user)[:4],
+        "tools": [(key, TOOLS[key]) for key in operations], "targets": TARGETS,
         "file_rules": file_rules(settings.MAX_BATCH_SIZE, settings.MAX_FILE_SIZE),
-    })
-
-
-@login_required
-def archive(request):
-    filters = ArchiveFilters(request.GET or None)
-    documents = Document.objects.filter(owner=request.user).annotate(
-        version_count=Count("versions"),
-    ).order_by("-updated_at", "-pk")
-    if filters.is_valid():
-        data = filters.cleaned_data
-        if data["q"]:
-            documents = documents.filter(title__icontains=data["q"])
-        dates = {}
-        for field, lookup in (("start", "date__gte"), ("end", "date__lte")):
-            if data[field]:
-                dates[lookup] = data[field]
-        versions = Version.objects.filter(document_id=OuterRef("pk"))
-        if data["format"]:
-            ext = data["format"]
-            suffixes = {"jpg": ("jpg", "jpeg"), "tiff": ("tiff", "tif")}.get(ext, (ext,))
-            versions = versions.filter(Q.create(
-                [("name__iendswith", "." + suffix) for suffix in suffixes], connector=Q.OR,
-            ))
-        if data["operation"]:
-            jobs = JobInput.objects.filter(
-                version_id=OuterRef("pk"), job__owner=request.user,
-                job__operation=data["operation"], job__state=Job.State.DONE,
-                **{f"job__created_at__{lookup}": date for lookup, date in dates.items()},
-            )
-            versions = versions.filter(Exists(jobs))
-        else:
-            documents = documents.filter(**{f"updated_at__{lookup}": date for lookup, date in dates.items()})
-        if data["format"] or data["operation"]:
-            documents = documents.filter(Exists(versions))
-    elif filters.is_bound:
-        documents = documents.none()
-    return render(request, "documents/archive.html", {
-        "page": Paginator(documents, 30).get_page(request.GET.get("page")),
-        "filters": filters,
-        "filtered": any(request.GET.get(key) for key in filters.fields),
-    })
-
-
-@login_required
-def document_detail(request, pk):
-    document = get_object_or_404(Document, owner=request.user, pk=pk)
-    versions = document.versions.prefetch_related(
-        Prefetch("job_inputs", queryset=JobInput.objects.select_related("job").prefetch_related("job__results")),
-    )
-    return render(request, "documents/detail.html", {
-        "document": document, "versions": versions,
     })
 
 
@@ -160,21 +106,6 @@ def compression_preview(request, pk):
 
 @login_required
 @require_POST
-def add_version(request, pk):
-    try:
-        upload = request_file(request, "Добавь обновлённый файл.")
-        save_version(request.user, upload, document_id=pk)
-    except Document.DoesNotExist as exc:
-        raise Http404 from exc
-    except ValueError as exc:
-        messages.error(request, str(exc))
-    else:
-        messages.success(request, "Новая версия сохранена.")
-    return redirect("document_detail", pk)
-
-
-@login_required
-@require_POST
 def submit(request, pk):
     try:
         data = json.loads(request.body)
@@ -209,7 +140,7 @@ def batch_detail(request, pk):
     )
     return render(request, template, {
         "batch": batch,
-        "jobs": [(job, TOOLS.get(job.operation, ("Операция из архива",))[0], can_retry(job))
+        "jobs": [(job, TOOLS.get(job.operation, "Старая операция"), can_retry(job))
                  for job in jobs],
         "active": any(job.state in (Job.State.QUEUED, Job.State.RUNNING) for job in jobs),
         "ready": any(job.state == Job.State.DONE for job in jobs),
@@ -258,17 +189,3 @@ def download_batch(request, pk):
         archive.close()
         raise
     return private_file_response(archive, f"docstation-{pk}.zip")
-
-
-@login_required
-@require_POST
-def delete(request, pk, version_pk=None):
-    try:
-        deleted = delete_versions(request.user, pk, version_pk)
-    except ObjectDoesNotExist as exc:
-        raise Http404 from exc
-    except VersionBusyError as exc:
-        messages.error(request, str(exc))
-        return redirect("document_detail", pk)
-    messages.success(request, "Удалено из архива.")
-    return redirect("archive") if deleted else redirect("document_detail", pk)
