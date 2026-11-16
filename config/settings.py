@@ -60,6 +60,7 @@ if os.environ.get("DOCSTATION_SERVE_STATIC") == "1":
     WHITENOISE_MIMETYPES = {".mjs": "text/javascript", ".wasm": "application/wasm"}
 TEMPLATES = [{
     "BACKEND": "django.template.backends.django.DjangoTemplates", "APP_DIRS": True,
+    "DIRS": [BASE_DIR / "documents" / "templates"],
     "OPTIONS": {"context_processors": [
         "django.template.context_processors.request", "django.contrib.auth.context_processors.auth",
         "django.contrib.messages.context_processors.messages",

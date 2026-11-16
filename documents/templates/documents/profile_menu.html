@@ -1,0 +1,29 @@
+{% with profile=request.user.profile %}
+<details class="profile-menu">
+  <summary class="profile-toggle" aria-label="Профиль пользователя">
+    {% if profile.avatar %}
+    <img class="profile-avatar" src="{% url 'profile_avatar' %}" alt="" width="40" height="40">
+    {% else %}
+    <span class="profile-avatar profile-initial" aria-hidden="true">{{ request.user.username|first|upper }}</span>
+    {% endif %}
+  </summary>
+  <div class="profile-panel panel">
+    <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+    <p class="profile-position">{{ profile.position|default:"Должность не указана" }}</p>
+    <dl class="profile-contacts">
+      <dt>Email</dt><dd>{% if request.user.email %}<a href="mailto:{{ request.user.email }}">{{ request.user.email }}</a>{% else %}Не указан{% endif %}</dd>
+      <dt>Телефон</dt><dd>{% if profile.phone %}<a href="tel:{{ profile.phone }}">{{ profile.phone }}</a>{% else %}Не указан{% endif %}</dd>
+    </dl>
+    <form class="profile-form" action="{% url 'profile_avatar' %}" method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <label>Фото профиля<input type="file" name="file" accept="image/jpeg,image/png,image/webp" required></label>
+      <button class="button secondary">Сохранить фото</button>
+    </form>
+    <form class="profile-form" method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button class="button secondary">Выйти <svg aria-hidden="true"><use href="#arrow"/></svg></button>
+    </form>
+  </div>
+</details>
+{% endwith %}

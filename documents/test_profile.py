@@ -1,0 +1,51 @@
+from contextlib import closing
+from io import BytesIO
+from tempfile import TemporaryDirectory
+
+from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase
+from django.urls import reverse
+from PIL import Image
+
+from .models import UserProfile
+
+
+class ProfileTests(TestCase):
+    def test_profile_menu_and_private_avatar_upload(self):
+        users = get_user_model().objects
+        user = users.create_user("employee", email="employee@example.test")
+        other = users.create_user("other")
+        UserProfile.objects.create(user=user, position="Инженер", phone="+7 123 456 78 90")
+        self.client.force_login(user)
+        page = self.client.get(reverse("workflow_records"))
+        self.assertContains(page, 'class="profile-menu"')
+        self.assertContains(page, "Инженер")
+        self.assertContains(page, "employee@example.test")
+        self.assertContains(page, "+7 123 456 78 90")
+        self.assertContains(page, 'action="/logout/"')
+        avatar_url = reverse("profile_avatar")
+        self.assertEqual(self.client.get(avatar_url).status_code, 404)
+
+        with TemporaryDirectory() as directory, self.settings(FILE_UPLOAD_TEMP_DIR=directory):
+            self.client.post(avatar_url, {
+                "file": SimpleUploadedFile("broken.png", b"not an image"),
+            })
+            self.assertEqual(self.client.get(avatar_url).status_code, 404)
+            image = BytesIO()
+            Image.new("RGB", (300, 200), "red").save(image, "PNG")
+            response = self.client.post(avatar_url, {
+                "file": SimpleUploadedFile("avatar.png", image.getvalue()),
+                "next": reverse("workflow_records"),
+                "user": other.pk,
+            })
+        self.assertRedirects(response, reverse("workflow_records"))
+        self.assertContains(self.client.get(reverse("workspace")), 'src="/profile/avatar/"')
+        response = self.client.get(avatar_url)
+        self.assertEqual(response["Content-Type"], "image/webp")
+        with closing(Image.open(BytesIO(response.content))) as avatar:
+            self.assertEqual(avatar.size, (192, 192))
+        self.assertEqual(UserProfile.objects.get(user=user).position, "Инженер")
+
+        self.client.force_login(other)
+        self.assertEqual(self.client.get(avatar_url).status_code, 404)

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="workspace-grid">
   <div class="hero-copy">
-    <h1>Конвертер<br> документов</h1>
+    <h1>Конвертер документов</h1>
     <nav class="workspace-nav" aria-label="Разделы конвертера">
       {% for key, item in sections.items %}
       <button type="button" class="workspace-section" data-section="{{ key }}" aria-controls="converter" aria-pressed="{% if key == section %}true{% else %}false{% endif %}">

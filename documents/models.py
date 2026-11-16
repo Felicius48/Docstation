@@ -1,7 +1,19 @@
 import uuid
 
 from django.conf import settings
+from django.core.validators import RegexValidator
 from django.db import models
+
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
+    position = models.CharField("Должность", max_length=120, blank=True)
+    phone = models.CharField("Телефон", max_length=50, blank=True)
+    avatar = models.BinaryField(blank=True, default=bytes)
+
+    class Meta:
+        verbose_name = "профиль"
+        verbose_name_plural = "профиль"
 
 
 class Document(models.Model):
@@ -146,15 +158,25 @@ class ApprovalDecision(models.Model):
         constraints = [models.UniqueConstraint(fields=["round", "reviewer"], name="unique_approval_reviewer")]
 
 
-class WorkflowRecord(models.Model):
-    class Kind(models.TextChoices):
-        CONTRACT = "ДОГ", "Договор"
-        ACT = "АКТ", "Акт"
-        ORDER = "ПРК", "Приказ"
-        REQUEST = "ЗАЯ", "Заявка"
-        INCOMING = "ВХ", "Входящая корреспонденция"
-        OUTGOING = "ИСХ", "Исходящая корреспонденция"
+class DocumentType(models.Model):
+    code = models.CharField(
+        "Код", primary_key=True, max_length=12,
+        validators=[RegexValidator(r"\A[A-ZА-ЯЁ0-9]+\Z", "Используй заглавные буквы или цифры.")],
+        help_text="Код используется в регистрационном номере.",
+    )
+    name = models.CharField("Название", max_length=100)
+    is_active = models.BooleanField("Доступен для новых карточек", default=True)
 
+    class Meta:
+        ordering = ["name", "code"]
+        verbose_name = "тип документа"
+        verbose_name_plural = "типы документов"
+
+    def __str__(self):
+        return self.name
+
+
+class WorkflowRecord(models.Model):
     class Mode(models.TextChoices):
         EDIT = "edit", "Редактирование и комментарии"
         APPROVAL = "approval", "Согласование и подписание"
@@ -170,12 +192,12 @@ class WorkflowRecord(models.Model):
         WITHDRAWN = "withdrawn", "Отозван"
 
     version = models.ForeignKey(Version, on_delete=models.PROTECT)
-    recipient = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
-        related_name="received_workflow_records",
+    recipients = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, blank=True,
+        related_name="received_workflow_cards",
     )
     title = models.CharField(max_length=255)
-    kind = models.CharField(max_length=3, choices=Kind.choices)
+    kind = models.ForeignKey(DocumentType, on_delete=models.PROTECT, db_column="kind")
     purpose = models.TextField(max_length=4000)
     description = models.TextField(blank=True, max_length=4000)
     mode = models.CharField(max_length=8, choices=Mode.choices, default=Mode.APPROVAL)
@@ -184,6 +206,11 @@ class WorkflowRecord(models.Model):
     registered_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class RegistrationSequence(models.Model):
+    prefix = models.CharField(max_length=20, primary_key=True)
+    last_number = models.PositiveBigIntegerField(default=0)
 
 
 class WorkflowEvent(models.Model):

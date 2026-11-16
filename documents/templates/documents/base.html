@@ -12,26 +12,36 @@
 {% include 'documents/icons.html' %}
 {% if request.user.is_authenticated %}
 <div class="shell">
+  <aside class="site-sidebar">
+    <a href="{% url 'workspace' %}" class="brand"><span class="brand-mark"><svg aria-hidden="true"><use href="#logo"/></svg></span>DocStation</a>
+    <nav class="site-nav" aria-label="Основное меню">
+      {% with route=request.resolver_match.url_name %}
+      <a href="{% url 'workspace' %}" {% if route == 'workspace' %}aria-current="page"{% endif %}>
+        <svg aria-hidden="true"><use href="#convert"/></svg><span>Конвертер</span>
+      </a>
+      <a href="{% url 'history' %}" {% if route == 'history' or route == 'batch_detail' %}aria-current="page"{% endif %}>
+        <svg aria-hidden="true"><use href="#history"/></svg><span>История</span>
+      </a>
+      <a href="{% url 'workflow_records' %}" {% if route == 'workflow_records' or route == 'workflow_detail' or route == 'workflow_create' or route == 'workflow_upload' or route == 'workflow_comment' or route == 'workflow_edit' %}aria-current="page"{% endif %}>
+        <svg aria-hidden="true"><use href="#documents"/></svg><span>Документы</span>
+      </a>
+      {% if request.user.is_superuser %}
+      <a href="{% url 'account_admin:index' %}" class="admin-nav-start">
+        <svg aria-hidden="true"><use href="#settings"/></svg><span>Управление</span>
+      </a>
+      <a href="{% url 'registration_settings' %}" {% if route == 'registration_settings' %}aria-current="page"{% endif %}>
+        <svg aria-hidden="true"><use href="#users"/></svg><span>Регистрация</span>
+      </a>
+      {% endif %}
+      {% endwith %}
+    </nav>
+  </aside>
   <header class="site-header">
     <div class="site-header-inner">
-      <a href="{% url 'workspace' %}" class="brand"><span class="brand-mark"><svg aria-hidden="true"><use href="#logo"/></svg></span>Docstation</a>
-      <nav class="site-nav" aria-label="Основное меню">
-        {% with route=request.resolver_match.url_name %}
-        <a href="{% url 'workspace' %}" {% if route == 'workspace' %}aria-current="page"{% endif %}>Конвертер</a>
-        <a href="{% url 'history' %}" {% if route == 'history' or route == 'batch_detail' %}aria-current="page"{% endif %}>История</a>
-        <a href="{% url 'workflow_records' %}" {% if route == 'workflow_records' or route == 'workflow_detail' or route == 'workflow_create' %}aria-current="page"{% endif %}>ЭДО</a>
-        {% endwith %}
-        {% if request.user.is_superuser %}
-        <a href="{% url 'account_admin:index' %}">Управление</a>
-        <a href="{% url 'registration_settings' %}">Регистрация</a>
-        {% endif %}
-      </nav>
+      <a href="{% url 'workspace' %}" class="brand mobile-brand"><span class="brand-mark"><svg aria-hidden="true"><use href="#logo"/></svg></span>DocStation</a>
+      <span class="topbar-title">DocStation</span>
       <div class="account">
-        <span class="account-name">{{ request.user.username }}</span>
-        <form method="post" action="{% url 'logout' %}">
-          {% csrf_token %}
-          <button class="button secondary sign-out" aria-label="Выйти">Выйти <svg aria-hidden="true"><use href="#arrow"/></svg></button>
-        </form>
+        {% include 'documents/profile_menu.html' %}
       </div>
     </div>
   </header>

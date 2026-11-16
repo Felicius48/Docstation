@@ -1,0 +1,38 @@
+@import url("vendor/sneat/core.css") layer(sneat);
+
+html[data-theme="light"], :root {
+  --primary: #5759de;
+  --secondary: #4547bc;
+  --accent: #fff;
+  --body-bg: var(--bs-body-bg, #f5f5f9);
+  --body-fg: #384551;
+  --body-loud-color: #22303e;
+  --header-color: #fff;
+  --link-fg: #4547bc;
+  --link-hover-color: #37399d;
+  --button-bg: var(--primary);
+  --button-hover-bg: var(--secondary);
+  --default-button-bg: var(--secondary);
+  --default-button-hover-bg: #37399d;
+  --breadcrumbs-bg: #e7e7ff;
+  --breadcrumbs-fg: #4547bc;
+  --breadcrumbs-link-fg: #37399d;
+  --darkened-bg: #eeeeff;
+  --selected-row: #e7e7ff;
+}
+html[data-theme="dark"] {
+  --primary: #5759de;
+  --secondary: #4547bc;
+  --breadcrumbs-bg: #33345c;
+}
+body { font-family: "Inter", "Segoe UI", system-ui, sans-serif; }
+#header { border-radius: 0 0 10px 10px; box-shadow: 0 2px 8px #22303e18; }
+#content-main .module, #content-related, #changelist {
+  background: var(--body-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+html[data-theme="light"] #content-main .module,
+html[data-theme="light"] #content-related,
+html[data-theme="light"] #changelist { background: #fff; }
+.module h2, .module caption, .inline-group h2 { border-radius: 9px 9px 0 0; }

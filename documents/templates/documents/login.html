@@ -3,9 +3,9 @@
 {% block guest %}
 <main class="login-page">
   <section class="login-card">
-    <div class="brand"><span class="brand-mark"><svg><use href="#logo"/></svg></span>Docstation</div>
-    <h1>Вход в архив</h1>
-    <p>Войди, чтобы работать со своими документами.</p>
+    <div class="brand"><span class="brand-mark"><svg><use href="#logo"/></svg></span>DocStation</div>
+    <h1>Вход в DocStation</h1>
+    <p>Войдите, чтобы работать с документами.</p>
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ next }}">

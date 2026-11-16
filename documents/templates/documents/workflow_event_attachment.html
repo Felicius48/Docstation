@@ -1,0 +1,10 @@
+{% url 'workflow_event_file' record.pk event.pk as download_url %}
+{% url 'workflow_event_preview' record.pk event.pk as preview_url %}
+<div class="job-actions">
+  <a class="workflow-version-link" href="{{ download_url }}">
+    {% include "documents/document_icon.html" with name=event.version.name size=16 only %}
+    <span>Версия {{ event.version.number }} · {{ event.version.name }}</span>
+    <svg aria-hidden="true"><use href="#download"/></svg>
+  </a>
+  {% include 'documents/preview_button.html' with file=event.version %}
+</div>

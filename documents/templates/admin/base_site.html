@@ -1,0 +1,6 @@
+{% extends "admin/base.html" %}
+{% load static %}
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title }}{% endblock %}
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'documents/admin-sneat.css' %}">{% endblock %}
+{% block branding %}<div id="site-name"><a href="{% url 'account_admin:index' %}">{{ site_header }}</a></div>{% endblock %}
+{% block nav-global %}{% endblock %}

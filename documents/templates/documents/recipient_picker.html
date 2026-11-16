@@ -1,0 +1,10 @@
+<div class="recipient-picker" data-recipient-picker>
+  <label class="recipient-search" hidden>
+    Поиск по ФИО
+    <input type="search" autocomplete="off" data-recipient-search>
+  </label>
+  <div class="recipient-options">
+    {% include "django/forms/widgets/checkbox_select.html" %}
+  </div>
+  <p class="workflow-note" data-recipient-status role="status" hidden></p>
+</div>

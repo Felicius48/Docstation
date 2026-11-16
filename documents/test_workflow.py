@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Document, Version, WorkflowRecord
+from .models import Document, DocumentType, Version, WorkflowRecord
 
 
 class WorkflowTests(TestCase):
@@ -23,7 +23,7 @@ class WorkflowTests(TestCase):
         self.client.force_login(outsider)
         self.assertEqual(self.client.get(create).status_code, 404)
         self.client.force_login(owner)
-        data = {"title": "Договор", "mode": "approval", "kind": "ДОГ", "purpose": "Поставка", "recipient": recipient.pk}
+        data = {"title": "Договор", "mode": "approval", "kind": "ДОГ", "purpose": "Поставка", "recipients": recipient.pk}
         self.assertContains(self.client.post(create, {**data, "purpose": ""}), "Назначение")
         self.assertFalse(WorkflowRecord.objects.exists())
         for expected in (1, 2):
@@ -72,7 +72,7 @@ class WorkflowTests(TestCase):
         }).url
         record = WorkflowRecord.objects.get()
         file_url = reverse("workflow_file", args=[record.pk])
-        self.assertRedirects(self.client.post(detail, {"action": "assign", "recipient": reader.pk}), detail)
+        self.assertRedirects(self.client.post(detail, {"action": "assign", "recipients": reader.pk}), detail)
         self.assertContains(self.client.get(detail), "receiver")
         self.client.force_login(reader)
         self.assertEqual(self.client.get(detail).status_code, 404)
@@ -152,7 +152,7 @@ class WorkflowTests(TestCase):
         version = Version.objects.create(
             document=Document.objects.create(owner=author, title="Test"), number=1, name="test.txt", size=4,
         )
-        record = WorkflowRecord.objects.create(version=version, title="Test", kind="ЗАЯ", purpose="Check")
+        record = WorkflowRecord.objects.create(version=version, title="Test", kind_id="ЗАЯ", purpose="Check")
         detail = reverse("workflow_detail", args=[record.pk])
         admin = reverse("account_admin:index")
         self.client.force_login(colleague)
@@ -182,13 +182,13 @@ class WorkflowTests(TestCase):
         self.client.force_login(sender)
         self.assertContains(self.client.post(create, data), "Укажи получателя перед отправкой.")
         self.assertFalse(WorkflowRecord.objects.exists())
-        detail = self.client.post(create, {**data, "recipient": recipient.pk}).url
+        detail = self.client.post(create, {**data, "recipients": recipient.pk}).url
         record = WorkflowRecord.objects.get()
         self.assertEqual(record.state, WorkflowRecord.State.REVIEW)
         self.assertEqual(list(record.events.order_by("pk").values_list("state", flat=True)), ["created", "review"])
         self.client.force_login(recipient)
         self.assertContains(self.client.get(reverse("workflow_records")), detail)
-        self.assertContains(self.client.get(detail), "<dt>Кому направлен</dt><dd>recipient</dd>")
+        self.assertContains(self.client.get(detail), "<dt>Кому направлен</dt><dd>ФИО не указано</dd>")
 
     def test_comments_require_card_access_and_do_not_change_state(self):
         author, recipient, outsider = (self.user(name) for name in ("author", "recipient", "outsider"))
@@ -197,7 +197,7 @@ class WorkflowTests(TestCase):
         self.client.force_login(author)
         detail = self.client.post(reverse("workflow_create", args=[version.pk]), {
             "title": "Договор", "mode": "approval", "kind": "ДОГ", "purpose": "Проверка", "action": "send",
-            "recipient": recipient.pk,
+            "recipients": recipient.pk,
         }).url
         record = WorkflowRecord.objects.get()
         url = reverse("workflow_comment", args=[record.pk])
@@ -225,7 +225,7 @@ class WorkflowTests(TestCase):
         self.assertContains(self.client.get(create), "Редактирование и комментарии")
         detail = self.client.post(create, {
             "title": "Черновик", "kind": "ЗАЯ", "purpose": "Правки",
-            "mode": "edit", "recipient": recipient.pk,
+            "mode": "edit", "recipients": recipient.pk,
         }).url
         record = WorkflowRecord.objects.get()
         self.assertEqual(self.client.post(detail, {"state": "review"}).status_code, 400)
@@ -243,3 +243,172 @@ class WorkflowTests(TestCase):
         record.refresh_from_db()
         self.assertEqual(record.state, WorkflowRecord.State.SHARED)
         self.assertEqual(record.title, "Уточнено")
+
+    def test_comment_attachment_replaces_current_file_and_preserves_previous_version(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from .storage import stored_file
+
+        author, recipient, outsider = (self.user(name) for name in ("author", "recipient", "outsider"))
+        document = Document.objects.create(owner=author, title="Заявка")
+        version = Version.objects.create(document=document, number=1, name="initial.txt", size=5)
+        create = reverse("workflow_create", args=[version.pk])
+        self.client.force_login(author)
+        detail = self.client.post(create, {
+            "title": "Заявка", "kind": "ЗАЯ", "purpose": "Правки", "mode": "edit",
+            "recipients": recipient.pk, "action": "send",
+        }).url
+        record = WorkflowRecord.objects.get()
+        comment_url = reverse("workflow_comment", args=[record.pk])
+        with TemporaryDirectory() as directory, self.settings(
+            DATA_DIR=Path(directory), FILE_UPLOAD_TEMP_DIR=Path(directory),
+        ):
+            initial = stored_file(version.key)
+            initial.parent.mkdir()
+            initial.write_bytes(b"first")
+            self.assertEqual(self.client.post(comment_url, {
+                "file": SimpleUploadedFile("unauthorized.txt", b"blocked"),
+            }).status_code, 403)
+            self.client.force_login(recipient)
+            self.assertRedirects(self.client.post(comment_url, {
+                "comment": "Исправил текст", "file": SimpleUploadedFile("revision.txt", b"second"),
+            }), detail + "#document-comments")
+            record.refresh_from_db()
+            change = record.events.get(is_comment=True)
+            self.assertEqual(record.version.number, 2)
+            self.assertEqual(change.version_id, record.version_id)
+            self.assertEqual(initial.read_bytes(), b"first")
+            download_url = reverse("workflow_event_file", args=[record.pk, change.pk])
+            preview_url = reverse("workflow_event_preview", args=[record.pk, change.pk])
+            self.assertContains(self.client.get(detail), 'data-file-preview="' + preview_url + '"', count=2)
+            for url in (download_url, preview_url, reverse("workflow_file", args=[record.pk])):
+                with closing(self.client.get(url)) as response:
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(b"".join(response.streaming_content), b"second")
+            self.client.force_login(outsider)
+            self.assertEqual(self.client.get(download_url).status_code, 404)
+            self.assertEqual(self.client.get(preview_url).status_code, 404)
+
+    def test_admin_document_types_control_new_cards_without_hiding_existing_ones(self):
+        admin = get_user_model().objects.create_superuser("admin", password="test-password")
+        employee = self.user("employee")
+        document = Document.objects.create(owner=employee, title="Отчёт")
+        version = Version.objects.create(document=document, number=1, name="report.txt", size=4)
+        add_type = reverse("account_admin:documents_documenttype_add")
+        self.client.force_login(employee)
+        self.assertEqual(self.client.get(add_type, follow=True).status_code, 403)
+        self.client.force_login(admin)
+        response = self.client.post(add_type, {"code": "ОТЧ", "name": "Отчёт", "is_active": "on", "_save": "1"})
+        self.assertEqual(response.status_code, 302)
+        self.client.force_login(employee)
+        create = reverse("workflow_create", args=[version.pk])
+        data = {"mode": "approval", "title": "Отчёт", "kind": "ОТЧ", "purpose": "Проверка"}
+        self.assertContains(self.client.get(create), 'value="ОТЧ"')
+        detail = self.client.post(create, data).url
+        self.client.force_login(admin)
+        change_type = reverse("account_admin:documents_documenttype_change", args=["ОТЧ"])
+        self.assertEqual(self.client.post(change_type, {"name": "Отчёт отдела", "_save": "1"}).status_code, 302)
+        self.assertFalse(DocumentType.objects.get(pk="ОТЧ").is_active)
+        self.client.force_login(employee)
+        self.assertContains(self.client.get(detail), "Отчёт отдела")
+        self.assertNotContains(self.client.get(create), 'value="ОТЧ"')
+        self.assertEqual(self.client.post(create, data).status_code, 200)
+        self.assertEqual(WorkflowRecord.objects.count(), 1)
+
+    def test_document_is_delivered_to_multiple_selected_users(self):
+        author, first, second, outsider = (
+            self.user(name) for name in ("author", "first", "second", "outsider")
+        )
+        first.first_name, first.last_name = "Алексей Сергеевич", "Иванов"
+        first.save(update_fields=["first_name", "last_name"])
+        second.first_name, second.last_name = "Мария Олеговна", "Петрова"
+        second.save(update_fields=["first_name", "last_name"])
+        document = Document.objects.create(owner=author, title="Заявка")
+        version = Version.objects.create(document=document, number=1, name="plan.txt", size=4)
+        self.client.force_login(author)
+        create = reverse("workflow_create", args=[version.pk])
+        page = self.client.get(create)
+        self.assertContains(page, "Поиск по ФИО")
+        self.assertContains(page, "Алексей Сергеевич Иванов")
+        self.assertNotContains(page, "(first)")
+        detail = self.client.post(create, {
+            "title": "Заявка", "kind": "ЗАЯ", "purpose": "Проверка", "mode": "edit",
+            "recipients": [first.pk, second.pk], "action": "send",
+        }).url
+        record = WorkflowRecord.objects.get()
+        self.assertSetEqual(set(record.recipients.values_list("pk", flat=True)), {first.pk, second.pk})
+        edit = reverse("workflow_edit", args=[record.pk])
+        for recipient in (first, second):
+            self.client.force_login(recipient)
+            self.assertContains(self.client.get(reverse("workflow_records")), detail)
+            self.assertContains(self.client.get(detail), "Алексей Сергеевич Иванов, Мария Олеговна Петрова")
+            self.assertRedirects(self.client.post(edit, {
+                "title": recipient.username, "purpose": "Проверка",
+            }), detail)
+        self.client.force_login(outsider)
+        self.assertEqual(self.client.get(detail).status_code, 404)
+
+    def test_admin_deletes_branch_without_removing_shared_file_or_reusing_number(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from .storage import stored_file
+
+        admin = get_user_model().objects.create_superuser("admin", password="test-password")
+        employee = self.user("employee")
+        document = Document.objects.create(owner=employee, title="Договор")
+        shared = Version.objects.create(document=document, number=1, name="shared.txt", size=4)
+        private = Version.objects.create(document=document, number=2, name="private.txt", size=4)
+        first = WorkflowRecord.objects.create(
+            version=private, title="Договор", kind_id="ДОГ", purpose="Проверка", state="signed",
+        )
+        other = WorkflowRecord.objects.create(
+            version=shared, title="Вторая ветка", kind_id="ДОГ", purpose="Проверка", state="signed",
+        )
+        event = first.events.create(actor=employee, state="created", version=shared, comment="История")
+        delete = reverse("workflow_delete", args=[first.pk])
+        self.client.force_login(employee)
+        self.assertNotContains(self.client.get(reverse("workflow_detail", args=[first.pk])), delete)
+        self.assertEqual(self.client.post(delete, {"confirm": "delete"}).status_code, 403)
+        self.client.force_login(admin)
+        self.assertEqual(self.client.get(delete).status_code, 405)
+        self.assertEqual(self.client.post(delete).status_code, 400)
+        first_url = reverse("workflow_detail", args=[first.pk])
+        self.assertRedirects(self.client.post(first_url, {"state": "registered"}), first_url)
+
+        with TemporaryDirectory() as directory, self.settings(DATA_DIR=Path(directory)):
+            removed_path, shared_path = stored_file(private.key), stored_file(shared.key)
+            removed_path.parent.mkdir()
+            removed_path.write_bytes(b"private")
+            shared_path.write_bytes(b"shared")
+            with self.captureOnCommitCallbacks(execute=True):
+                self.assertRedirects(self.client.post(delete, {"confirm": "delete"}), reverse("workflow_records"))
+            self.assertFalse(removed_path.exists())
+            self.assertTrue(shared_path.exists())
+        self.assertFalse(WorkflowRecord.objects.filter(pk=first.pk).exists())
+        self.assertFalse(first.events.filter(pk=event.pk).exists())
+        self.assertTrue(Version.objects.filter(pk=shared.pk).exists())
+        self.assertFalse(Version.objects.filter(pk=private.pk).exists())
+        other_url = reverse("workflow_detail", args=[other.pk])
+        self.assertRedirects(self.client.post(other_url, {"state": "registered"}), other_url)
+        other.refresh_from_db()
+        self.assertEqual(other.registration_number, f"ДОГ-{timezone.localdate().year}-000002")
+
+    def test_admin_deletes_legacy_history_without_explicit_event_versions(self):
+        admin = get_user_model().objects.create_superuser("admin", password="test-password")
+        document = Document.objects.create(owner=admin, title="Старая карточка")
+        Version.objects.create(document=document, number=1, name="first.txt", size=3)
+        latest = Version.objects.create(document=document, number=2, name="second.txt", size=3)
+        record = WorkflowRecord.objects.create(
+            version=latest, title=document.title, kind_id="ЗАЯ", purpose="Проверка",
+        )
+        record.events.create(actor=admin, state="created")
+        self.client.force_login(admin)
+        self.assertRedirects(self.client.post(
+            reverse("workflow_delete", args=[record.pk]), {"confirm": "delete"},
+        ), reverse("workflow_records"))
+        self.assertFalse(Document.objects.filter(pk=document.pk).exists())
+        self.assertFalse(Version.objects.filter(document_id=document.pk).exists())

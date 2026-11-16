@@ -485,3 +485,39 @@ async function refreshJobs() {
 }
 
 if (document.querySelector("[data-poll]")) window.setTimeout(refreshJobs, 1800);
+
+const profileMenu = document.querySelector(".profile-menu");
+if (profileMenu) {
+  document.addEventListener("click", (event) => {
+    if (profileMenu.open && !profileMenu.contains(event.target)) profileMenu.open = false;
+  });
+  profileMenu.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !profileMenu.open) return;
+    profileMenu.open = false;
+    profileMenu.querySelector("summary").focus();
+  });
+}
+
+for (const picker of document.querySelectorAll("[data-recipient-picker]")) {
+  const search = picker.querySelector("[data-recipient-search]");
+  const status = picker.querySelector("[data-recipient-status]");
+  const choices = [...picker.querySelectorAll(".recipient-options label")];
+  search.closest("label").hidden = false;
+  status.hidden = false;
+  function updateRecipients() {
+    const query = search.value.trim().toLocaleLowerCase();
+    let selected = 0;
+    let matches = 0;
+    for (const choice of choices) {
+      const checked = choice.querySelector("input").checked;
+      const matchesQuery = choice.textContent.toLocaleLowerCase().includes(query);
+      choice.hidden = !matchesQuery;
+      selected += Number(checked);
+      matches += Number(matchesQuery);
+    }
+    status.textContent = (matches ? "" : "Пользователи не найдены. ") + "Выбрано: " + selected;
+  }
+  search.addEventListener("input", updateRecipients);
+  picker.addEventListener("change", updateRecipients);
+  updateRecipients();
+}
