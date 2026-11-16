@@ -102,12 +102,18 @@ class WorkflowTests(TestCase):
             record.refresh_from_db()
             self.assertEqual(record.version.number, 2)
             self.assertEqual(path.read_bytes(), b"test")
+            initial_event = record.events.order_by("pk").first()
+            initial_file = reverse("workflow_event_file", args=[record.pk, initial_event.pk])
+            self.assertContains(self.client.get(detail), "Версия 2 · revision.txt")
+            with closing(self.client.get(initial_file)) as result:
+                self.assertEqual(b"".join(result.streaming_content), b"test")
             with closing(self.client.get(file_url)) as result:
                 self.assertEqual(b"".join(result.streaming_content), b"updated")
         self.assertEqual(self.client.get(reverse("download_version", args=[version.pk])).status_code, 404)
         self.client.force_login(stranger)
         self.assertEqual(self.client.get(detail).status_code, 404)
         self.assertEqual(self.client.get(file_url).status_code, 404)
+        self.assertEqual(self.client.get(initial_file).status_code, 404)
 
     def test_upload_creates_card_without_archive(self):
         from pathlib import Path
@@ -165,3 +171,46 @@ class WorkflowTests(TestCase):
         }), detail)
         for page in (admin, reverse("account_admin:auth_user_changelist"), reverse("account_admin:auth_group_changelist")):
             self.assertEqual(self.client.get(page).status_code, 200)
+
+    def test_create_and_send_delivers_to_recipient(self):
+        sender = self.user("sender")
+        recipient = self.user("recipient")
+        document = Document.objects.create(owner=sender, title="Поручение")
+        version = Version.objects.create(document=document, number=1, name="task.txt", size=4)
+        create = reverse("workflow_create", args=[version.pk])
+        data = {"title": "Поручение", "kind": "ЗАЯ", "purpose": "Проверка", "action": "send"}
+        self.client.force_login(sender)
+        self.assertContains(self.client.post(create, data), "Укажи получателя перед отправкой.")
+        self.assertFalse(WorkflowRecord.objects.exists())
+        detail = self.client.post(create, {**data, "recipient": recipient.pk}).url
+        record = WorkflowRecord.objects.get()
+        self.assertEqual(record.state, WorkflowRecord.State.REVIEW)
+        self.assertEqual(list(record.events.order_by("pk").values_list("state", flat=True)), ["created", "review"])
+        self.client.force_login(recipient)
+        self.assertContains(self.client.get(reverse("workflow_records")), detail)
+        self.assertContains(self.client.get(detail), "<dt>Кому направлен</dt><dd>recipient</dd>")
+
+    def test_comments_require_card_access_and_do_not_change_state(self):
+        author, recipient, outsider = (self.user(name) for name in ("author", "recipient", "outsider"))
+        document = Document.objects.create(owner=author, title="Договор")
+        version = Version.objects.create(document=document, number=1, name="contract.DOCX", size=10)
+        self.client.force_login(author)
+        detail = self.client.post(reverse("workflow_create", args=[version.pk]), {
+            "title": "Договор", "kind": "ДОГ", "purpose": "Проверка", "action": "send",
+            "recipient": recipient.pk,
+        }).url
+        record = WorkflowRecord.objects.get()
+        url = reverse("workflow_comment", args=[record.pk])
+        self.client.force_login(outsider)
+        self.assertEqual(self.client.post(url, {"comment": "Посторонний"}).status_code, 404)
+        self.client.force_login(recipient)
+        self.assertEqual(self.client.post(url, {"comment": "   "}).status_code, 200)
+        self.assertFalse(record.events.filter(is_comment=True).exists())
+        self.assertRedirects(self.client.post(url, {"comment": "Получил, <проверяю>"}), detail + "#document-comments")
+        record.refresh_from_db()
+        self.assertEqual(record.state, WorkflowRecord.State.REVIEW)
+        self.assertEqual(record.events.get(is_comment=True).actor, recipient)
+        self.client.force_login(author)
+        page = self.client.get(detail)
+        self.assertContains(page, "Получил, &lt;проверяю&gt;")
+        self.assertContains(page, 'data-format="word"')

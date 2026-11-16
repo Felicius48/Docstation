@@ -179,9 +179,12 @@ class WorkflowRecord(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+
 class WorkflowEvent(models.Model):
     record = models.ForeignKey(WorkflowRecord, on_delete=models.PROTECT, related_name="events")
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    version = models.ForeignKey(Version, on_delete=models.PROTECT, null=True, blank=True)
+    is_comment = models.BooleanField(default=False)
     previous_state = models.CharField(max_length=12, choices=WorkflowRecord.State.choices, blank=True)
     state = models.CharField(max_length=12, choices=WorkflowRecord.State.choices)
     comment = models.TextField(blank=True, max_length=4000)

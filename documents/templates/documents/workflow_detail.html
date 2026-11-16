@@ -1,53 +1,131 @@
 {% extends 'documents/base.html' %}
+{% load previews %}
 {% block title %}{{ record.title }} · ЭДО · DocStation{% endblock %}
 {% block content %}
-<div class="intro detail-intro">
+<header class="workflow-header">
   <a class="back" href="{% url 'workflow_records' %}">← К карточкам ЭДО</a>
-  <h1>{{ record.title }}</h1>
-  <p>{{ record.get_kind_display }} · {{ record.get_state_display }}</p>
+  <div class="workflow-heading">
+    <div>
+      <p class="workflow-kind">{{ record.get_kind_display }}{% if record.registration_number %} · {{ record.registration_number }}{% endif %}</p>
+      <h1>{{ record.title }}</h1>
+    </div>
+    <span class="workflow-state" data-state="{{ record.state }}">{{ record.get_state_display }}</span>
+  </div>
+</header>
+
+<div class="workflow-grid">
+  <div class="workflow-column">
+    <section class="panel workflow-panel" aria-labelledby="workflow-document">
+      <h2 id="workflow-document">Документ</h2>
+      <div class="workflow-file">
+        {% with icon=record.version.name|document_icon %}
+        <span class="workflow-file-icon" data-format="{{ icon }}"><svg aria-hidden="true"><use href="#{{ icon }}"/></svg></span>
+        {% endwith %}
+        <div class="row-main">
+          <b>{{ record.version.name }}</b>
+          <small>{{ record.version.name|document_suffix }} · Версия {{ record.version.number }} · {{ record.version.size|filesizeformat }}</small>
+        </div>
+        <a class="button secondary" href="{% url 'workflow_file' record.pk %}"><svg aria-hidden="true"><use href="#download"/></svg> Скачать</a>
+      </div>
+      <dl class="workflow-meta">
+        <div><dt>Автор</dt><dd>{{ record.version.document.owner.get_username }}</dd></div>
+        <div><dt>Кому направлен</dt><dd>{% if record.recipient %}{{ record.recipient.get_username }}{% else %}Получатель не указан{% endif %}</dd></div>
+        <div><dt>Создан</dt><dd>{{ record.created_at|date:"d.m.Y H:i" }}</dd></div>
+        {% if record.registered_at %}<div><dt>Дата регистрации</dt><dd>{{ record.registered_at|date:"d.m.Y" }}</dd></div>{% endif %}
+      </dl>
+      <h3>Назначение</h3><p class="preview-text">{{ record.purpose }}</p>
+      {% if record.description %}<h3>Описание</h3><p class="preview-text">{{ record.description }}</p>{% endif %}
+    </section>
+
+    <section class="panel workflow-panel" id="document-comments" aria-labelledby="workflow-comments-title">
+      <h2 id="workflow-comments-title">Комментарии</h2>
+      {% if comments %}
+      <ol class="workflow-comments">
+        {% for event in comments %}
+        <li>
+          <div class="workflow-event-meta"><b>{{ event.actor.get_username }}</b><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time></div>
+          {% if not event.is_comment %}<span class="workflow-note">{{ event.get_state_display }}</span>{% endif %}
+          <p class="preview-text">{{ event.comment }}</p>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}<p class="workflow-note">Комментариев пока нет.</p>{% endif %}
+      <form class="workflow-form" method="post" action="{% url 'workflow_comment' record.pk %}#document-comments">
+        {% csrf_token %}
+        {{ comment_form.as_p }}
+        <button class="button primary">Добавить комментарий</button>
+      </form>
+    </section>
+  </div>
+
+  <div class="workflow-column">
+    {% if details_form or recipient_form or transitions %}
+    <section class="panel workflow-panel" aria-labelledby="workflow-actions">
+      <h2 id="workflow-actions">Действия</h2>
+      {% if record.state == 'created' %}
+      <p class="workflow-note">Получатель увидит карточку после отправки.</p>
+      {% if can_send %}
+      <form class="workflow-form" method="post">
+        {% csrf_token %}<button class="button primary" name="state" value="review">Отправить получателю</button>
+      </form>
+      {% endif %}
+      {% endif %}
+      {% if transitions %}
+      <form class="workflow-form" method="post">
+        {% csrf_token %}
+        <label>Следующий статус<select name="state">{% for value, label in transitions %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+        <label>Причина отклонения или отзыва<textarea name="comment" rows="2" maxlength="4000"></textarea></label>
+        <button class="button secondary">Изменить статус</button>
+      </form>
+      {% endif %}
+      {% if recipient_form %}
+      <details class="workflow-action" {% if recipient_form.errors %}open{% endif %}>
+        <summary>Изменить получателя</summary>
+        <form class="workflow-form" method="post">
+          {% csrf_token %}
+          {{ recipient_form.as_p }}
+          <button class="button secondary" name="action" value="assign">Сохранить получателя</button>
+        </form>
+      </details>
+      {% endif %}
+      {% if details_form %}
+      <details class="workflow-action" {% if details_form.errors %}open{% endif %}>
+        <summary>Редактировать карточку</summary>
+        <form class="workflow-form" method="post" enctype="multipart/form-data" action="{% url 'workflow_edit' record.pk %}">
+          {% csrf_token %}
+          {{ details_form.as_p }}
+          {% if record.state == 'created' or record.state == 'review' %}<label>Новая версия файла<input type="file" name="file"></label>{% endif %}
+          <button class="button secondary">Сохранить изменения</button>
+        </form>
+      </details>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="panel workflow-panel" aria-labelledby="workflow-history">
+      <h2 id="workflow-history">Статусы и версии</h2>
+      <ol class="workflow-timeline">
+        {% for event in events %}
+        <li>
+          <article class="workflow-step">
+            <div class="workflow-event-meta"><b>{{ event.actor.get_username }}</b><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time></div>
+            <div class="workflow-step-title">
+              {% if event.previous_state %}<span>{{ event.get_previous_state_display }}</span><span aria-hidden="true">→</span>{% endif %}
+              <span class="workflow-state" data-state="{{ event.state }}">{{ event.get_state_display }}</span>
+            </div>
+            {% if event.version %}
+            <a class="workflow-version-link" href="{% url 'workflow_event_file' record.pk event.pk %}">
+              <svg aria-hidden="true"><use href="#{{ event.version.name|document_icon }}"/></svg>
+              <span>Версия {{ event.version.number }} · {{ event.version.name }}</span>
+              <svg aria-hidden="true"><use href="#download"/></svg>
+            </a>
+            {% endif %}
+            {% if event.comment %}<p class="preview-text">{{ event.comment }}</p>{% endif %}
+          </article>
+        </li>
+        {% empty %}<li><p class="workflow-note">Изменений пока нет.</p></li>{% endfor %}
+      </ol>
+    </section>
+  </div>
 </div>
-<section class="panel version approval-form">
-  <p>Автор: {{ record.version.document.owner.get_username }}</p>
-  <p>Кому направлен: {% if record.recipient %}{{ record.recipient.get_username }}{% else %}Получатель не указан{% endif %}</p>
-  <h2>Назначение</h2>
-  <p class="preview-text">{{ record.purpose }}</p>
-  {% if record.description %}<h2>Описание</h2><p class="preview-text">{{ record.description }}</p>{% endif %}
-  <p>Создана {{ record.created_at|date:"d.m.Y H:i" }} · обновлена {{ record.updated_at|date:"d.m.Y H:i" }}</p>
-  {% if record.registered_at %}<p>Регистрация {{ record.registration_number }} от {{ record.registered_at|date:"d.m.Y" }}</p>{% endif %}
-  <a class="button secondary" href="{% url 'workflow_file' record.pk %}">Скачать версию {{ record.version.number }}</a>
-</section>
-{% if details_form %}
-<form class="panel version approval-form" method="post" enctype="multipart/form-data" action="{% url 'workflow_edit' record.pk %}">
-  {% csrf_token %}
-  {{ details_form.as_p }}
-  {% if record.state == 'created' or record.state == 'review' %}<label>Новая версия файла<input type="file" name="file"></label>{% endif %}
-  <button class="button secondary">Сохранить изменения</button>
-</form>
-{% endif %}
-{% if recipient_form %}
-<form class="panel version approval-form" method="post">
-  {% csrf_token %}
-  {{ recipient_form.as_p }}
-  <button class="button secondary" name="action" value="assign">Сохранить получателя</button>
-</form>
-{% endif %}
-{% if transitions %}
-<form class="panel version approval-form" method="post">
-  {% csrf_token %}
-  <label>Новый статус<select name="state">{% for value, label in transitions %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
-  <label>Комментарий (обязателен при отклонении или отзыве)<textarea name="comment" rows="3" maxlength="4000"></textarea></label>
-  <button class="button primary">Изменить статус</button>
-</form>
-{% endif %}
-<section class="panel version">
-  <h2>Журнал действий</h2>
-  <ol class="approval-timeline">
-  {% for event in events %}
-    <li><b>{% if event.previous_state %}{{ event.get_previous_state_display }} → {% endif %}{{ event.get_state_display }}</b>
-      <small>{{ event.created_at|date:"d.m.Y H:i" }} · {{ event.actor.get_username }}</small>
-      {% if event.comment %}<p class="preview-text">{{ event.comment }}</p>{% endif %}
-    </li>
-  {% endfor %}
-  </ol>
-</section>
 {% endblock %}

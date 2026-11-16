@@ -7,6 +7,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_safe
 
@@ -29,7 +30,7 @@ def visible_records(user):
     if user.is_superuser:
         return WorkflowRecord.objects.all()
     return WorkflowRecord.objects.filter(
-        Q(version__document__owner=user) | Q(recipient=user, events__state=State.REVIEW),
+        Q(version__document__owner=user) | Q(recipient=user, events__state=State.REVIEW, events__previous_state=State.CREATED),
     ).distinct()
 
 
@@ -90,6 +91,10 @@ def workflow_create(request, pk=None):
     form = RecordForm(request.user, request.POST if request.method == "POST" else None,
                       initial={"title": version.document.title} if version else None)
     if request.method == "POST" and form.is_valid():
+        send_now = request.POST.get("action") == "send"
+        if send_now and form.cleaned_data["recipient"] is None:
+            form.add_error("recipient", "Укажи получателя перед отправкой.")
+            return render(request, "documents/workflow_create.html", {"form": form, "version": version})
         uploaded = None
         try:
             with transaction.atomic():
@@ -98,7 +103,13 @@ def workflow_create(request, pk=None):
                 record = form.save(commit=False)
                 record.version = version or uploaded
                 record.save()
-                record.events.create(actor=request.user, state=record.state)
+                record.events.create(actor=request.user, state=record.state, version=record.version)
+                if send_now:
+                    record.state = State.REVIEW
+                    record.save(update_fields=["state", "updated_at"])
+                    record.events.create(
+                        actor=request.user, previous_state=State.CREATED, state=State.REVIEW, version=record.version,
+                    )
         except ValueError as exc:
             if uploaded:
                 remove_files([uploaded.key])
@@ -148,7 +159,9 @@ def workflow_detail(request, pk):
                 record.registration_number = f"{prefix}{count + 1:06d}"
                 record.registered_at = now
             record.save(update_fields=["state", "updated_at", "registration_number", "registered_at"])
-            record.events.create(actor=request.user, previous_state=previous, state=target, comment=comment)
+            record.events.create(
+                actor=request.user, previous_state=previous, state=target, comment=comment, version=record.version,
+            )
         return redirect("workflow_detail", pk)
     record = get_object_or_404(records, pk=pk)
     return render_record(request, record)
@@ -166,16 +179,29 @@ def can_assign(user, record):
     return user.is_superuser or (record.state == State.CREATED and record.version.document.owner_id == user.pk)
 
 
-def render_record(request, record, form=None, details_form=None):
+class CommentForm(forms.Form):
+    comment = forms.CharField(
+        label="Комментарий", max_length=4000,
+        widget=forms.Textarea(attrs={"rows": 3, "placeholder": "Напишите комментарий к документу"}),
+    )
+
+
+def render_record(request, record, form=None, details_form=None, comment_form=None):
     editable = can_edit(request.user, record)
     if form is None and can_assign(request.user, record):
         form = RecipientForm(record.version.document.owner, instance=record)
     if details_form is None and editable:
         details_form = DetailsForm(instance=record)
+    events = list(record.events.select_related("actor", "version").order_by("pk"))
     return render(request, "documents/workflow_detail.html", {
+        "comment_form": comment_form if comment_form is not None else CommentForm(),
+        "comments": [event for event in events if event.is_comment or (event.previous_state and event.comment)],
         "recipient_form": form, "details_form": details_form,
-        "record": record, "events": record.events.select_related("actor").order_by("pk"),
-        "transitions": [(state, state.label) for state in TRANSITIONS.get(record.state, ())] if editable else [],
+        "can_send": editable and record.state == State.CREATED and record.recipient is not None and record.recipient.is_active,
+        "record": record, "events": [event for event in events if not event.is_comment],
+        "transitions": [
+            (state, state.label) for state in TRANSITIONS.get(record.state, ()) if state != State.REVIEW
+        ] if editable else [],
     })
 
 
@@ -201,7 +227,10 @@ def workflow_edit(request, pk):
                 changes.append(f"Файл (версия {uploaded.number})")
             if changes:
                 form.save()
-                record.events.create(actor=request.user, state=record.state, comment="Изменено: " + ", ".join(changes))
+                record.events.create(
+                    actor=request.user, state=record.state, version=uploaded,
+                    comment="Изменено: " + ", ".join(changes),
+                )
     except ValueError as exc:
         form.add_error(None, str(exc))
         return render_record(request, record, details_form=form)
@@ -217,3 +246,27 @@ def workflow_edit(request, pk):
 def workflow_file(request, pk):
     record = get_object_or_404(visible_records(request.user).select_related("version"), pk=pk)
     return download(record.version.key, record.version.name)
+
+
+@login_required
+@require_http_methods(["POST"])
+def workflow_comment(request, pk):
+    with transaction.atomic():
+        record = get_object_or_404(
+            visible_records(request.user).select_related("version__document__owner", "recipient"), pk=pk,
+        )
+        form = CommentForm(request.POST)
+        if not form.is_valid():
+            return render_record(request, record, comment_form=form)
+        record.events.create(
+            actor=request.user, state=record.state, is_comment=True, comment=form.cleaned_data["comment"],
+        )
+    return redirect(reverse("workflow_detail", args=[pk]) + "#document-comments")
+
+
+@login_required
+@require_safe
+def workflow_event_file(request, pk, event_pk):
+    record = get_object_or_404(visible_records(request.user), pk=pk)
+    event = get_object_or_404(record.events.select_related("version"), pk=event_pk, version__isnull=False)
+    return download(event.version.key, event.version.name)
