@@ -13,7 +13,7 @@
 <section class="panel detail-list" aria-label="Карточки ЭДО">
   {% for record in page %}
     <a class="row approval-row" href="{% url 'workflow_detail' record.pk %}">
-      <span class="row-main"><b>{{ record.title }}</b><small>{{ record.get_kind_display }}{% if record.recipient_id == request.user.pk %} · Входящий от {{ record.version.document.owner.get_username }}{% elif record.recipient %} · Кому: {{ record.recipient.get_username }}{% endif %}{% if record.registration_number %} · {{ record.registration_number }}{% endif %}</small></span>
+      <span class="row-main"><b>{{ record.title }}</b><small>{{ record.get_kind_display }} · {{ record.get_mode_display }}{% if record.recipient_id == request.user.pk %} · Входящий от {{ record.version.document.owner.get_username }}{% elif record.recipient %} · Кому: {{ record.recipient.get_username }}{% endif %}{% if record.registration_number %} · {{ record.registration_number }}{% endif %}</small></span>
       <span class="badge">{{ record.get_state_display }}</span>
     </a>
   {% empty %}

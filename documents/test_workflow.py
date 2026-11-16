@@ -23,7 +23,7 @@ class WorkflowTests(TestCase):
         self.client.force_login(outsider)
         self.assertEqual(self.client.get(create).status_code, 404)
         self.client.force_login(owner)
-        data = {"title": "Договор", "kind": "ДОГ", "purpose": "Поставка", "recipient": recipient.pk}
+        data = {"title": "Договор", "mode": "approval", "kind": "ДОГ", "purpose": "Поставка", "recipient": recipient.pk}
         self.assertContains(self.client.post(create, {**data, "purpose": ""}), "Назначение")
         self.assertFalse(WorkflowRecord.objects.exists())
         for expected in (1, 2):
@@ -68,7 +68,7 @@ class WorkflowTests(TestCase):
         version = Version.objects.create(document=document, number=1, name="task.txt", size=4)
         self.client.force_login(author)
         detail = self.client.post(reverse("workflow_create", args=[version.pk]), {
-            "title": "Поручение", "kind": "ЗАЯ", "purpose": "Проверка",
+            "title": "Поручение", "mode": "approval", "kind": "ЗАЯ", "purpose": "Проверка",
         }).url
         record = WorkflowRecord.objects.get()
         file_url = reverse("workflow_file", args=[record.pk])
@@ -133,7 +133,7 @@ class WorkflowTests(TestCase):
             (data / "files").mkdir()
             with self.settings(DATA_DIR=data, FILE_UPLOAD_TEMP_DIR=data / "uploads"):
                 response = self.client.post(create, {
-                    "title": "Поручение", "kind": "ЗАЯ", "purpose": "Проверка",
+                    "title": "Поручение", "mode": "approval", "kind": "ЗАЯ", "purpose": "Проверка",
                     "file": SimpleUploadedFile("task.txt", b"test"),
                 })
                 record = WorkflowRecord.objects.get()
@@ -178,7 +178,7 @@ class WorkflowTests(TestCase):
         document = Document.objects.create(owner=sender, title="Поручение")
         version = Version.objects.create(document=document, number=1, name="task.txt", size=4)
         create = reverse("workflow_create", args=[version.pk])
-        data = {"title": "Поручение", "kind": "ЗАЯ", "purpose": "Проверка", "action": "send"}
+        data = {"title": "Поручение", "mode": "approval", "kind": "ЗАЯ", "purpose": "Проверка", "action": "send"}
         self.client.force_login(sender)
         self.assertContains(self.client.post(create, data), "Укажи получателя перед отправкой.")
         self.assertFalse(WorkflowRecord.objects.exists())
@@ -196,7 +196,7 @@ class WorkflowTests(TestCase):
         version = Version.objects.create(document=document, number=1, name="contract.DOCX", size=10)
         self.client.force_login(author)
         detail = self.client.post(reverse("workflow_create", args=[version.pk]), {
-            "title": "Договор", "kind": "ДОГ", "purpose": "Проверка", "action": "send",
+            "title": "Договор", "mode": "approval", "kind": "ДОГ", "purpose": "Проверка", "action": "send",
             "recipient": recipient.pk,
         }).url
         record = WorkflowRecord.objects.get()
@@ -214,3 +214,31 @@ class WorkflowTests(TestCase):
         page = self.client.get(detail)
         self.assertContains(page, "Получил, &lt;проверяю&gt;")
         self.assertContains(page, 'data-format="word"')
+
+    def test_edit_mode_delivers_without_approval_transitions(self):
+        sender, recipient = (self.user(name) for name in ("sender", "recipient"))
+        document = Document.objects.create(owner=sender, title="Черновик")
+        version = Version.objects.create(document=document, number=1, name="draft.txt", size=4)
+        create = reverse("workflow_create", args=[version.pk])
+        self.client.force_login(sender)
+        self.assertContains(self.client.get(create), "Редактирование и комментарии")
+        detail = self.client.post(create, {
+            "title": "Черновик", "kind": "ЗАЯ", "purpose": "Правки",
+            "mode": "edit", "recipient": recipient.pk,
+        }).url
+        record = WorkflowRecord.objects.get()
+        self.assertEqual(self.client.post(detail, {"state": "review"}).status_code, 400)
+        self.assertContains(self.client.get(detail), 'name="state" value="shared"')
+        self.assertRedirects(self.client.post(detail, {"state": "shared"}), detail)
+        self.client.force_login(recipient)
+        self.assertContains(self.client.get(reverse("workflow_records")), detail)
+        self.assertContains(self.client.get(detail), "На редактировании")
+        self.assertNotContains(self.client.get(detail), "Изменить статус")
+        self.assertEqual(self.client.post(detail, {"state": "signed"}).status_code, 400)
+        edit = reverse("workflow_edit", args=[record.pk])
+        self.assertRedirects(self.client.post(edit, {"title": "Уточнено", "purpose": "Правки"}), detail)
+        comment = reverse("workflow_comment", args=[record.pk])
+        self.assertRedirects(self.client.post(comment, {"comment": "Готово"}), detail + "#document-comments")
+        record.refresh_from_db()
+        self.assertEqual(record.state, WorkflowRecord.State.SHARED)
+        self.assertEqual(record.title, "Уточнено")

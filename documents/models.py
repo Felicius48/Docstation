@@ -155,8 +155,13 @@ class WorkflowRecord(models.Model):
         INCOMING = "ВХ", "Входящая корреспонденция"
         OUTGOING = "ИСХ", "Исходящая корреспонденция"
 
+    class Mode(models.TextChoices):
+        EDIT = "edit", "Редактирование и комментарии"
+        APPROVAL = "approval", "Согласование и подписание"
+
     class State(models.TextChoices):
         CREATED = "created", "Создан"
+        SHARED = "shared", "На редактировании"
         REVIEW = "review", "На согласовании"
         SIGNED = "signed", "Подписан"
         REGISTERED = "registered", "Зарегистрирован"
@@ -173,6 +178,7 @@ class WorkflowRecord(models.Model):
     kind = models.CharField(max_length=3, choices=Kind.choices)
     purpose = models.TextField(max_length=4000)
     description = models.TextField(blank=True, max_length=4000)
+    mode = models.CharField(max_length=8, choices=Mode.choices, default=Mode.APPROVAL)
     state = models.CharField(max_length=12, choices=State.choices, default=State.CREATED)
     registration_number = models.CharField(max_length=32, unique=True, null=True, blank=True)
     registered_at = models.DateTimeField(null=True, blank=True)

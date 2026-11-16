@@ -18,19 +18,31 @@ from .uploads import request_file
 from .version_storage import save_version
 
 State = WorkflowRecord.State
+Mode = WorkflowRecord.Mode
+SENT_STATES = (State.SHARED, State.REVIEW)
+FILE_EDIT_STATES = (State.CREATED, *SENT_STATES)
 TRANSITIONS = {
-    State.CREATED: (State.REVIEW, State.WITHDRAWN),
     State.REVIEW: (State.SIGNED, State.REJECTED, State.WITHDRAWN),
     State.SIGNED: (State.REGISTERED,),
     State.REGISTERED: (State.ARCHIVED,),
 }
 
 
+def send_state(mode):
+    return State.SHARED if mode == Mode.EDIT else State.REVIEW
+
+
+def available_transitions(record):
+    if record.state == State.CREATED:
+        return send_state(record.mode), State.WITHDRAWN
+    return TRANSITIONS.get(record.state, ()) if record.mode == Mode.APPROVAL else ()
+
+
 def visible_records(user):
     if user.is_superuser:
         return WorkflowRecord.objects.all()
     return WorkflowRecord.objects.filter(
-        Q(version__document__owner=user) | Q(recipient=user, events__state=State.REVIEW, events__previous_state=State.CREATED),
+        Q(version__document__owner=user) | Q(recipient=user, events__state__in=SENT_STATES, events__previous_state=State.CREATED),
     ).distinct()
 
 
@@ -58,9 +70,10 @@ class DetailsForm(forms.ModelForm):
 class RecordForm(RecipientForm):
     class Meta(RecipientForm.Meta):
         model = WorkflowRecord
-        fields = ["title", "kind", "purpose", "description", "recipient"]
-        labels = {**DetailsForm.Meta.labels, **RecipientForm.Meta.labels, "kind": "Тип"}
-        widgets = DetailsForm.Meta.widgets
+        fields = ["mode", "title", "kind", "purpose", "description", "recipient"]
+        labels = {**DetailsForm.Meta.labels, **RecipientForm.Meta.labels, "kind": "Тип", "mode": "Режим работы"}
+        widgets = {**DetailsForm.Meta.widgets, "mode": forms.RadioSelect()}
+        help_texts = {"mode": "Выберите режим до создания карточки."}
 
 
 @login_required
@@ -105,10 +118,10 @@ def workflow_create(request, pk=None):
                 record.save()
                 record.events.create(actor=request.user, state=record.state, version=record.version)
                 if send_now:
-                    record.state = State.REVIEW
+                    record.state = send_state(record.mode)
                     record.save(update_fields=["state", "updated_at"])
                     record.events.create(
-                        actor=request.user, previous_state=State.CREATED, state=State.REVIEW, version=record.version,
+                        actor=request.user, previous_state=State.CREATED, state=record.state, version=record.version,
                     )
         except ValueError as exc:
             if uploaded:
@@ -144,9 +157,9 @@ def workflow_detail(request, pk):
                 return redirect("workflow_detail", pk)
             target = request.POST.get("state")
             comment = request.POST.get("comment", "").strip()
-            if target not in TRANSITIONS.get(record.state, ()):
+            if target not in available_transitions(record):
                 return HttpResponseBadRequest("Недопустимый переход статуса.")
-            if target == State.REVIEW and (record.recipient is None or not record.recipient.is_active):
+            if target in SENT_STATES and (record.recipient is None or not record.recipient.is_active):
                 return HttpResponseBadRequest("Укажи получателя перед отправкой.")
             if len(comment) > 4000 or (target in (State.WITHDRAWN, State.REJECTED) and not comment):
                 return HttpResponseBadRequest("Укажи причину отклонения или отзыва, до 4000 символов.")
@@ -198,9 +211,10 @@ def render_record(request, record, form=None, details_form=None, comment_form=No
         "comments": [event for event in events if event.is_comment or (event.previous_state and event.comment)],
         "recipient_form": form, "details_form": details_form,
         "can_send": editable and record.state == State.CREATED and record.recipient is not None and record.recipient.is_active,
+        "send_state": send_state(record.mode), "can_replace_file": record.state in FILE_EDIT_STATES,
         "record": record, "events": [event for event in events if not event.is_comment],
         "transitions": [
-            (state, state.label) for state in TRANSITIONS.get(record.state, ()) if state != State.REVIEW
+            (state, state.label) for state in available_transitions(record) if state not in SENT_STATES
         ] if editable else [],
     })
 
@@ -219,7 +233,7 @@ def workflow_edit(request, pk):
                 return render_record(request, record, details_form=form)
             changes = [form.fields[name].label for name in form.changed_data]
             if request.FILES or getattr(request, "file_too_large", False):
-                if record.state not in (State.CREATED, State.REVIEW):
+                if record.state not in FILE_EDIT_STATES:
                     return HttpResponseBadRequest("Замена файла доступна до завершения согласования.")
                 file = request_file(request, "Выбери файл документа.")
                 uploaded = save_version(record.version.document.owner, file, document=record.version.document)

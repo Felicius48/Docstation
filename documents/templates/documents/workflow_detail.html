@@ -6,7 +6,7 @@
   <a class="back" href="{% url 'workflow_records' %}">← К карточкам ЭДО</a>
   <div class="workflow-heading">
     <div>
-      <p class="workflow-kind">{{ record.get_kind_display }}{% if record.registration_number %} · {{ record.registration_number }}{% endif %}</p>
+      <p class="workflow-kind">{{ record.get_kind_display }} · {{ record.get_mode_display }}{% if record.registration_number %} · {{ record.registration_number }}{% endif %}</p>
       <h1>{{ record.title }}</h1>
     </div>
     <span class="workflow-state" data-state="{{ record.state }}">{{ record.get_state_display }}</span>
@@ -66,7 +66,7 @@
       <p class="workflow-note">Получатель увидит карточку после отправки.</p>
       {% if can_send %}
       <form class="workflow-form" method="post">
-        {% csrf_token %}<button class="button primary" name="state" value="review">Отправить получателю</button>
+        {% csrf_token %}<button class="button primary" name="state" value="{{ send_state }}">Отправить получателю</button>
       </form>
       {% endif %}
       {% endif %}
@@ -94,7 +94,7 @@
         <form class="workflow-form" method="post" enctype="multipart/form-data" action="{% url 'workflow_edit' record.pk %}">
           {% csrf_token %}
           {{ details_form.as_p }}
-          {% if record.state == 'created' or record.state == 'review' %}<label>Новая версия файла<input type="file" name="file"></label>{% endif %}
+          {% if can_replace_file %}<label>Новая версия файла<input type="file" name="file"></label>{% endif %}
           <button class="button secondary">Сохранить изменения</button>
         </form>
       </details>

@@ -2,10 +2,10 @@
 {% block title %}Новая карточка ЭДО · DocStation{% endblock %}
 {% block content %}
 <div class="intro detail-intro"><a class="back" href="{% url 'workflow_records' %}">← К карточкам ЭДО</a><h1>Новая карточка ЭДО</h1>{% if version %}<p>{{ version.name }} · версия {{ version.number }}</p>{% endif %}</div>
-<form class="panel version approval-form" method="post" {% if not version %}enctype="multipart/form-data"{% endif %}>
+<form class="panel version approval-form workflow-create-form" method="post" {% if not version %}enctype="multipart/form-data"{% endif %}>
   {% csrf_token %}
   {% if not version %}<label>Файл документа<input type="file" name="file" required></label>{% endif %}
-  {{ form.as_p }}
+  {{ form.as_div }}
   <div class="form-footer">
     <button class="button primary" name="action" value="send">Создать и отправить</button>
     <button class="button secondary" name="action" value="draft">Сохранить черновик</button>

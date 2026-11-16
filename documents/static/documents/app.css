@@ -291,3 +291,9 @@ input:not([type=file]), select { border: 1px solid #d6d6d6; background: #fff; co
   .workflow-header { padding-top: 30px; }
   .workflow-grid { grid-template-columns: 1fr; }
 }
+
+.workflow-create-form { display: grid; gap: 12px; }
+.workflow-create-form fieldset { min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.workflow-create-form fieldset label { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; }
+.workflow-create-form fieldset input[type=radio] { width: auto; min-height: 0; margin: 0; }
+.workflow-create-form textarea, .workflow-create-form input[type=file] { max-width: 100%; }
