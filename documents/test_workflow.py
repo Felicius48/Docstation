@@ -214,6 +214,7 @@ class WorkflowTests(TestCase):
         page = self.client.get(detail)
         self.assertContains(page, "Получил, &lt;проверяю&gt;")
         self.assertContains(page, 'data-format="word"')
+        self.assertContains(page, "/static/documents/file-icons/doc.png", count=3)
 
     def test_edit_mode_delivers_without_approval_transitions(self):
         sender, recipient = (self.user(name) for name in ("sender", "recipient"))

@@ -19,7 +19,7 @@
       <h2 id="workflow-document">Документ</h2>
       <div class="workflow-file">
         {% with icon=record.version.name|document_icon %}
-        <span class="workflow-file-icon" data-format="{{ icon }}"><svg aria-hidden="true"><use href="#{{ icon }}"/></svg></span>
+        <span class="workflow-file-icon" data-format="{{ icon }}">{% include "documents/document_icon.html" with name=record.version.name size=32 only %}</span>
         {% endwith %}
         <div class="row-main">
           <b>{{ record.version.name }}</b>
@@ -115,7 +115,7 @@
             </div>
             {% if event.version %}
             <a class="workflow-version-link" href="{% url 'workflow_event_file' record.pk event.pk %}">
-              <svg aria-hidden="true"><use href="#{{ event.version.name|document_icon }}"/></svg>
+              {% include "documents/document_icon.html" with name=event.version.name size=16 only %}
               <span>Версия {{ event.version.number }} · {{ event.version.name }}</span>
               <svg aria-hidden="true"><use href="#download"/></svg>
             </a>

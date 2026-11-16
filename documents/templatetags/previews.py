@@ -25,3 +25,12 @@ def document_icon(name):
 @register.filter
 def document_suffix(name):
     return name.rpartition(".")[2].upper() if "." in name else ""
+
+
+@register.filter
+def document_icon_image(name):
+    suffix = document_suffix(name).lower()
+    icon = {"docx": "doc", "xlsx": "xls", "jpeg": "jpg"}.get(suffix, suffix)
+    if icon in {"doc", "xls", "pdf", "jpg", "txt"}:
+        return f"documents/file-icons/{icon}.png"
+    return ""

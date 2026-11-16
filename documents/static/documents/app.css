@@ -286,6 +286,7 @@ input:not([type=file]), select { border: 1px solid #d6d6d6; background: #fff; co
 .workflow-event-meta { justify-content: space-between; font-size: 13px; }
 .workflow-event-meta time { color: var(--muted); }
 .workflow-version-link { display: flex; align-items: center; gap: 7px; font-size: 13px; overflow-wrap: anywhere; }
+.document-icon-image { display: block; flex: none; }
 .workflow-version-link svg { width: 16px; height: 16px; flex: none; }
 @media (max-width: 760px) {
   .workflow-header { padding-top: 30px; }
