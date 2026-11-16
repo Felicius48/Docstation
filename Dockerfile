@@ -14,8 +14,10 @@ COPY manage.py ./
 COPY config config
 COPY documents documents
 RUN DOCSTATION_DATA=/tmp/docstation-build DOCSTATION_SECRET_KEY=build-only \
-    python manage.py collectstatic --noinput
+    python manage.py collectstatic --noinput \
+    && chmod -R a+rX /app
 USER docstation
+RUN test -r manage.py && test -r config/settings.py && test -r documents/models.py
 CMD ["sh", "-ec", "python manage.py migrate --noinput && exec python manage.py runserver 0.0.0.0:8000 --noreload"]
 
 FROM base AS worker
