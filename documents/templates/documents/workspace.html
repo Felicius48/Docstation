@@ -1,81 +1,125 @@
-{% extends 'documents/base.html' %}
+{% extends "documents/base.html" %}
 {% block title %}Конвертер · Docstation{% endblock %}
 {% block content %}
-<div class="workspace-grid">
-  <div class="hero-copy">
-    <h1>Конвертер документов</h1>
-    <nav class="workspace-nav" aria-label="Разделы конвертера">
-      {% for key, item in sections.items %}
-      <button type="button" class="workspace-section" data-section="{{ key }}" aria-controls="converter" aria-pressed="{% if key == section %}true{% else %}false{% endif %}">
-        <svg aria-hidden="true"><use href="#{{ item.1 }}"/></svg><span class="workspace-label">{{ item.0 }}</span><span class="workspace-count"></span>
-      </button>
-      {% endfor %}
-    </nav>
+  <div class="workspace-grid">
+    <div class="hero-copy">
+      <h1>Конвертер документов</h1>
+      <nav class="workspace-nav" aria-label="Разделы конвертера">
+        {% for key, item in sections.items %}
+          <button type="button"
+                  class="workspace-section"
+                  data-section="{{ key }}"
+                  aria-controls="converter"
+                  aria-pressed="{% if key == section %}true{% else %}false{% endif %}">
+            <svg aria-hidden="true">
+              <use href="#{{ item.1 }}" />
+            </svg><span class="workspace-label">{{ item.0 }}</span><span class="workspace-count"></span>
+          </button>
+        {% endfor %}
+      </nav>
+    </div>
+    <section class="panel converter"
+             id="converter"
+             aria-labelledby="converter-title"
+             data-section="{{ section }}"
+             data-batch-url="{% url 'new_batch' %}"
+             data-preview-url="{% url 'new_compression_preview' %}"
+             {% if selected %}data-version="{{ selected.pk }}" data-version-name="{{ selected.name }}" data-version-url="{% url 'download_version' selected.pk %}"{% endif %}>
+      <h2 class="converter-title" id="converter-title">{{ section_title }}</h2>
+      <form id="conversion-form">
+        {% csrf_token %}
+        <div class="options">
+          <label>
+            Инструмент
+            <select name="operation" id="operation">
+              {% for key, label in tools %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+            </select>
+          </label>
+          <label data-option="target">
+            Выходной формат
+            <select name="target" id="target">{% for target in targets %}<option value="{{ target }}">{{ target|upper }}</option>{% endfor %}</select>
+          </label>
+          <div class="compression-setting" data-option="strength" hidden>
+            <label for="compression-strength">
+              Степень сжатия <output id="compression-value" for="compression-strength">50</output>
+            </label>
+            <input id="compression-strength"
+                   name="strength"
+                   type="range"
+                   min="0"
+                   max="100"
+                   value="50"
+                   aria-describedby="compression-scale">
+            <small id="compression-scale"><span>Исходный файл</span><span>Сильнее сжатие</span></small>
+          </div>
+        </div>
+        <div id="dropzone" class="dropzone">
+          <div class="upload-symbol">
+            <svg>
+              <use href="#upload" />
+            </svg>
+          </div>
+          <strong>Перетащи файлы сюда</strong>
+          <p>
+            или
+            <button type="button" class="text-button" id="choose-files">выбери на компьютере</button>
+          </p>
+          <small>Количество файлов: до {{ file_rules.maxFiles }} · до {{ max_file_mb|floatformat:"-6" }} МБ на файл</small>
+          <small class="supported-formats" id="supported-formats"></small>
+          <input type="file" id="file-input" multiple hidden>
+        </div>
+        <ol class="file-list"
+            id="file-list"
+            aria-label="Выбранные файлы"
+            aria-live="polite"
+            tabindex="0"
+            hidden>
+        </ol>
+        <p id="form-status" class="form-status" role="status" hidden></p>
+        <div class="form-footer">
+          <button class="button primary" id="run" type="submit" disabled>
+            Запустить обработку
+            <svg>
+              <use href="#arrow" />
+            </svg>
+          </button>
+        </div>
+      </form>
+    </section>
   </div>
-  <section class="panel converter" id="converter" aria-labelledby="converter-title" data-section="{{ section }}" data-batch-url="{% url 'new_batch' %}" data-preview-url="{% url 'new_compression_preview' %}" {% if selected %}data-version="{{ selected.pk }}" data-version-name="{{ selected.name }}" data-version-url="{% url 'download_version' selected.pk %}"{% endif %}>
-    <h2 class="converter-title" id="converter-title">{{ section_title }}</h2>
-    <form id="conversion-form">
-      {% csrf_token %}
-      <div class="options">
-        <label>Инструмент
-          <select name="operation" id="operation">
-          {% for key, label in tools %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+  <dialog class="pdf-picker" id="pdf-picker" aria-labelledby="pdf-picker-title">
+    <div class="pdf-picker-inner">
+      <div class="section-head">
+        <h2 id="pdf-picker-title">Выбрать страницы PDF</h2>
+        <button type="button"
+                class="button secondary"
+                id="pdf-picker-close"
+                autofocus>Закрыть</button>
+      </div>
+      <p class="pdf-picker-name" id="pdf-picker-name"></p>
+      <p id="pdf-picker-status" role="status"></p>
+      <div class="pdf-picker-controls" id="pdf-picker-controls" hidden>
+        <button type="button" class="button secondary" id="pdf-picker-all">Выбрать все</button>
+        <button type="button" class="button secondary" id="pdf-picker-clear">Снять выбор</button>
+        <span id="pdf-picker-count" role="status"></span>
+      </div>
+      <div class="pdf-thumbnails" id="pdf-picker-pages"></div>
+      <div class="pdf-picker-controls" id="pdf-picker-navigation" hidden>
+        <button type="button" class="button secondary" id="pdf-picker-prev">Назад</button>
+        <span id="pdf-picker-range" role="status"></span>
+        <button type="button" class="button secondary" id="pdf-picker-next">Далее</button>
+      </div>
+      <div class="form-footer">
+        <label>
+          Результат для всей пачки
+          <select id="pdf-picker-mode">
+            <option value="combined">Один PDF</option>
+            <option value="separate">Отдельный PDF на каждую страницу</option>
           </select>
         </label>
-        <label data-option="target">Выходной формат
-          <select name="target" id="target">{% for target in targets %}<option value="{{ target }}">{{ target|upper }}</option>{% endfor %}</select>
-        </label>
-        <div class="compression-setting" data-option="strength" hidden>
-          <label for="compression-strength">Степень сжатия <output id="compression-value" for="compression-strength">50</output></label>
-          <input id="compression-strength" name="strength" type="range" min="0" max="100" value="50" aria-describedby="compression-scale">
-          <small id="compression-scale"><span>Исходный файл</span><span>Сильнее сжатие</span></small>
-        </div>
+        <button type="button" class="button primary" id="pdf-picker-apply" disabled>Подтвердить выбор</button>
       </div>
-      <div id="dropzone" class="dropzone">
-        <div class="upload-symbol"><svg><use href="#upload"/></svg></div>
-        <strong>Перетащи файлы сюда</strong>
-        <p>или <button type="button" class="text-button" id="choose-files">выбери на компьютере</button></p>
-        <small>До 50 файлов · до 50 МБ на файл</small>
-        <small class="supported-formats" id="supported-formats"></small>
-        <input type="file" id="file-input" multiple hidden>
-      </div>
-      <ol class="file-list" id="file-list" aria-label="Выбранные файлы" aria-live="polite" tabindex="0" hidden></ol>
-      <p id="form-status" class="form-status" role="status" hidden></p>
-      <div class="form-footer">
-        <button class="button primary" id="run" type="submit" disabled>Запустить обработку <svg><use href="#arrow"/></svg></button>
-      </div>
-    </form>
-  </section>
-</div>
-<dialog class="pdf-picker" id="pdf-picker" aria-labelledby="pdf-picker-title">
-  <div class="pdf-picker-inner">
-    <div class="section-head">
-      <h2 id="pdf-picker-title">Выбрать страницы PDF</h2>
-      <button type="button" class="button secondary" id="pdf-picker-close" autofocus>Закрыть</button>
     </div>
-    <p class="pdf-picker-name" id="pdf-picker-name"></p>
-    <p id="pdf-picker-status" role="status"></p>
-    <div class="pdf-picker-controls" id="pdf-picker-controls" hidden>
-      <button type="button" class="button secondary" id="pdf-picker-all">Выбрать все</button>
-      <button type="button" class="button secondary" id="pdf-picker-clear">Снять выбор</button>
-      <span id="pdf-picker-count" role="status"></span>
-    </div>
-    <div class="pdf-thumbnails" id="pdf-picker-pages"></div>
-    <div class="pdf-picker-controls" id="pdf-picker-navigation" hidden>
-      <button type="button" class="button secondary" id="pdf-picker-prev">Назад</button>
-      <span id="pdf-picker-range" role="status"></span>
-      <button type="button" class="button secondary" id="pdf-picker-next">Далее</button>
-    </div>
-    <div class="form-footer">
-      <label>Результат для всей пачки
-        <select id="pdf-picker-mode">
-          <option value="combined">Один PDF</option>
-          <option value="separate">Отдельный PDF на каждую страницу</option>
-        </select>
-      </label>
-      <button type="button" class="button primary" id="pdf-picker-apply" disabled>Подтвердить выбор</button>
-    </div>
-  </div>
-</dialog>
-{{ file_rules|json_script:"file-rules" }}
+  </dialog>
+  {{ file_rules|json_script:"file-rules" }}
 {% endblock %}

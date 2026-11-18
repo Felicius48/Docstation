@@ -24,7 +24,10 @@ def preview_source(key):
 def create_preview(owner, name, size, strength, source):
     if extension(name) != "pdf" or not 0 < size <= settings.MAX_FILE_SIZE:
         raise ValueError("Выбери PDF размером до 50 МБ.")
-    if CompressionPreview.objects.filter(owner=owner, updated_at__gte=timezone.now() - LIFETIME).count() >= 100:
+    if (
+        CompressionPreview.objects.filter(owner=owner, updated_at__gte=timezone.now() - LIFETIME).count()
+        >= 100
+    ):
         raise ValueError("Слишком много файлов для расчёта размера. Попробуй позже.")
     preview = CompressionPreview(owner=owner, strength=strength, source_size=size)
     path = preview_source(preview.pk)
@@ -39,7 +42,10 @@ def create_preview(owner, name, size, strength, source):
 
 def requeue_preview(previews, strength):
     previews.exclude(strength=strength).update(
-        strength=strength, state=Job.State.QUEUED, result_size=None, updated_at=timezone.now(),
+        strength=strength,
+        state=Job.State.QUEUED,
+        result_size=None,
+        updated_at=timezone.now(),
     )
 
 

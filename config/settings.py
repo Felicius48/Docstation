@@ -46,34 +46,55 @@ if os.environ.get("DOCSTATION_BEHIND_HTTPS_PROXY") == "1":
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 INSTALLED_APPS = [
-    "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes", "django.contrib.sessions",
-    "django.contrib.messages", "django.contrib.staticfiles", "documents",
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "documents",
 ]
 MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware", "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware", "django.middleware.csrf.CsrfViewMiddleware",
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware", "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 if os.environ.get("DOCSTATION_SERVE_STATIC") == "1":
     MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
     WHITENOISE_MIMETYPES = {".mjs": "text/javascript", ".wasm": "application/wasm"}
-TEMPLATES = [{
-    "BACKEND": "django.template.backends.django.DjangoTemplates", "APP_DIRS": True,
-    "DIRS": [BASE_DIR / "documents" / "templates"],
-    "OPTIONS": {"context_processors": [
-        "django.template.context_processors.request", "django.contrib.auth.context_processors.auth",
-        "django.contrib.messages.context_processors.messages",
-    ]},
-}]
-DATABASES = {"default": {
-    "ENGINE": "django.db.backends.sqlite3", "NAME": DATA_DIR / "archive.sqlite3",
-    "OPTIONS": {"timeout": 15, "transaction_mode": "IMMEDIATE"},
-}}
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "APP_DIRS": True,
+        "DIRS": [BASE_DIR / "documents" / "templates"],
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ]
+        },
+    }
+]
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": DATA_DIR / "archive.sqlite3",
+        "OPTIONS": {"timeout": 15, "transaction_mode": "IMMEDIATE"},
+    }
+}
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": f"django.contrib.auth.password_validation.{name}"}
-    for name in ("UserAttributeSimilarityValidator", "MinimumLengthValidator",
-                 "CommonPasswordValidator", "NumericPasswordValidator")
+    for name in (
+        "UserAttributeSimilarityValidator",
+        "MinimumLengthValidator",
+        "CommonPasswordValidator",
+        "NumericPasswordValidator",
+    )
 ]
 LANGUAGE_CODE = "ru"
 TIME_ZONE = os.environ.get("DOCSTATION_TIME_ZONE", "Europe/Samara")

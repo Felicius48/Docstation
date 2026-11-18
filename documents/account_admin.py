@@ -30,16 +30,19 @@ class DepartmentAdmin(GroupAdmin):
 
 class ProfileInline(StackedInline):
     model = UserProfile
-    fields = ("position", "phone")
+    fields = ("patronymic", "position", "phone")
     can_delete = False
 
 
 class AccountAdmin(UserAdmin):
     inlines = (ProfileInline,)
+    add_fieldsets = UserAdmin.add_fieldsets + (
+        ("Личные данные", {"fields": ("last_name", "first_name", "email")}),
+    )
     filter_horizontal = ("groups",)
     fieldsets = (
         (None, {"fields": ("username", "password")}),
-        ("Контакты", {"fields": ("first_name", "last_name", "email")}),
+        ("Личные данные", {"fields": ("last_name", "first_name", "email")}),
         ("Доступ", {"fields": ("is_active", "is_superuser", "groups")}),
         ("Даты", {"fields": ("last_login", "date_joined")}),
     )

@@ -34,10 +34,14 @@ def profile_avatar(request):
         avatar = UserProfile.objects.filter(user=request.user).values_list("avatar", flat=True).first()
         if not avatar:
             raise Http404
-        return HttpResponse(avatar, content_type="image/webp", headers={
-            "Cache-Control": "private, no-store",
-            "X-Content-Type-Options": "nosniff",
-        })
+        return HttpResponse(
+            avatar,
+            content_type="image/webp",
+            headers={
+                "Cache-Control": "private, no-store",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     try:
         avatar = avatar_bytes(request_file(request, "Выбери фото профиля."))

@@ -10,8 +10,13 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         username = options["username"]
-        changed = get_user_model().objects.filter(username=username, is_active=True).update(
-            is_staff=True, is_superuser=True,
+        changed = (
+            get_user_model()
+            .objects.filter(username=username, is_active=True)
+            .update(
+                is_staff=True,
+                is_superuser=True,
+            )
         )
         if not changed:
             raise CommandError("Активная учётная запись не найдена.")

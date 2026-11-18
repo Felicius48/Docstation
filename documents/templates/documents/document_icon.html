@@ -1,8 +1,14 @@
 {% load static previews %}
 {% with image_path=name|document_icon_image %}
   {% if image_path %}
-    <img class="document-icon-image" src="{% static image_path %}" alt="" width="{{ size }}" height="{{ size }}">
+    <img class="document-icon-image"
+         src="{% static image_path %}"
+         alt=""
+         width="{{ size }}"
+         height="{{ size }}">
   {% else %}
-    <svg aria-hidden="true"><use href="#{{ name|document_icon }}"/></svg>
+    <svg aria-hidden="true">
+      <use href="#{{ name|document_icon }}" />
+    </svg>
   {% endif %}
 {% endwith %}

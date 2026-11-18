@@ -27,7 +27,12 @@ OFFICE_FORMATS = set.union(*OFFICE)
 WORKSPACE_SECTIONS = {
     "office": ("Офисные документы", "word", OFFICE_FORMATS, ("convert",)),
     "images": ("Изображения", "image", IMAGES, ("convert", "images_pdf")),
-    "pdf": ("PDF", "pages", {"pdf"}, ("convert", "merge", "split", "extract", "compress", "pdf_word", "pdf_tables")),
+    "pdf": (
+        "PDF",
+        "pages",
+        {"pdf"},
+        ("convert", "merge", "split", "extract", "compress", "pdf_word", "pdf_tables"),
+    ),
     "markdown": ("Markdown", "markdown", SUPPORTED, ("markdown",)),
 }
 
@@ -75,7 +80,8 @@ def file_rules(max_files, max_bytes):
         },
         "inputs": {
             tool: [suffix for suffix in suffixes if supports(tool, f"file.{suffix}", {})]
-            for tool in TOOLS if tool != "convert"
+            for tool in TOOLS
+            if tool != "convert"
         },
         "grouped": sorted(GROUPED),
         "sections": {
@@ -93,9 +99,12 @@ def validate_submission(data, max_files):
     operation = data.get("operation")
     ids = data.get("versions")
     options = validate_options(operation, data)
-    if (not isinstance(ids, list) or not 1 <= len(ids) <= max_files
-            or any(type(item) is not int or not 0 < item < 2**63 for item in ids)
-            or len(set(ids)) != len(ids)):
+    if (
+        not isinstance(ids, list)
+        or not 1 <= len(ids) <= max_files
+        or any(type(item) is not int or not 0 < item < 2**63 for item in ids)
+        or len(set(ids)) != len(ids)
+    ):
         raise ValueError(f"Выбери от 1 до {max_files} файлов.")
     if operation == "merge" and len(ids) < 2:
         raise ValueError("Для объединения нужны хотя бы два PDF.")
@@ -119,9 +128,12 @@ def validate_options(operation, data):
             if not isinstance(selections, dict) or not selections or len(selections) > 50:
                 raise ValueError("Выбери страницы для каждого PDF.")
             for pages in selections.values():
-                if (not isinstance(pages, list) or not 1 <= len(pages) <= 2000
-                        or any(type(page) is not int or not 1 <= page <= 2**31 - 1 for page in pages)
-                        or len(set(pages)) != len(pages)):
+                if (
+                    not isinstance(pages, list)
+                    or not 1 <= len(pages) <= 2000
+                    or any(type(page) is not int or not 1 <= page <= 2**31 - 1 for page in pages)
+                    or len(set(pages)) != len(pages)
+                ):
                     raise ValueError("Выбери до 2000 разных страниц для каждого PDF.")
             return {"selections": selections, "mode": mode}
         pages = str(data.get("pages", "")).strip()
@@ -154,8 +166,11 @@ def parse_pages(value, total=None):
             limits = [int(item) for item in part.split("-")]
         except ValueError:
             limits = []
-        if (not 1 <= len(limits) <= 2 or not 1 <= limits[0] <= limits[-1]
-                or (total is not None and limits[-1] > total)):
+        if (
+            not 1 <= len(limits) <= 2
+            or not 1 <= limits[0] <= limits[-1]
+            or (total is not None and limits[-1] > total)
+        ):
             raise ValueError("Проверь номера страниц. Пример: 1, 3-5.")
         if total is not None:
             if len(result) + limits[-1] - limits[0] + 1 > 2000:

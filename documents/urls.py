@@ -3,15 +3,29 @@ from django.urls import path
 from . import views, workflow_views
 
 urlpatterns = [
+    path("tasks/", workflow_views.task_list, name="task_list"),
+    path("tasks/sent/", workflow_views.task_list, {"sent": True}, name="task_sent"),
+    path("tasks/notifications/", workflow_views.task_notifications, name="task_notifications"),
     path("workflow/", workflow_views.workflow_records, name="workflow_records"),
     path("workflow/new/", workflow_views.workflow_create, name="workflow_upload"),
     path("workflow/new/<int:pk>/", workflow_views.workflow_create, name="workflow_create"),
     path("workflow/<int:pk>/delete/", workflow_views.workflow_delete, name="workflow_delete"),
     path("workflow/<int:pk>/edit/", workflow_views.workflow_edit, name="workflow_edit"),
     path("workflow/<int:pk>/comments/", workflow_views.workflow_comment, name="workflow_comment"),
-    path("workflow/<int:pk>/events/<int:event_pk>/preview/", workflow_views.workflow_event_file, {"preview": True}, name="workflow_event_preview"),
-    path("workflow/<int:pk>/preview/", workflow_views.workflow_file, {"preview": True}, name="workflow_preview"),
-    path("workflow/<int:pk>/events/<int:event_pk>/file/", workflow_views.workflow_event_file, name="workflow_event_file"),
+    path(
+        "workflow/<int:pk>/events/<int:event_pk>/preview/",
+        workflow_views.workflow_file,
+        {"preview": True},
+        name="workflow_event_preview",
+    ),
+    path(
+        "workflow/<int:pk>/preview/", workflow_views.workflow_file, {"preview": True}, name="workflow_preview"
+    ),
+    path(
+        "workflow/<int:pk>/events/<int:event_pk>/file/",
+        workflow_views.workflow_file,
+        name="workflow_event_file",
+    ),
     path("workflow/<int:pk>/file/", workflow_views.workflow_file, name="workflow_file"),
     path("workflow/<int:pk>/", workflow_views.workflow_detail, name="workflow_detail"),
     path("", views.workspace, name="workspace"),
@@ -24,7 +38,9 @@ urlpatterns = [
     path("api/compression-preview/", views.new_compression_preview, name="new_compression_preview"),
     path("api/compression-preview/<uuid:pk>/", views.compression_preview, name="compression_preview"),
     path("job/<int:pk>/retry/", views.retry, name="retry"),
-    path("file/original/<int:pk>/preview/", views.download_version, {"preview": True}, name="preview_version"),
+    path(
+        "file/original/<int:pk>/preview/", views.download_version, {"preview": True}, name="preview_version"
+    ),
     path("file/original/<int:pk>/", views.download_version, name="download_version"),
     path("file/result/<int:pk>/preview/", views.download_result, {"preview": True}, name="preview_result"),
     path("file/result/<int:pk>/", views.download_result, name="download_result"),

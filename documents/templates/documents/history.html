@@ -1,11 +1,14 @@
-{% extends 'documents/base.html' %}
+{% extends "documents/base.html" %}
 {% block title %}История · Docstation{% endblock %}
 {% block content %}
-<div class="intro"><h1>История обработки</h1><p>Пачки файлов, статусы операций и скачивание результатов.</p></div>
-<div class="panel">
-  {% for batch in page %}
-  <a class="record-row" href="{% url 'batch_detail' batch.pk %}"><span class="file-icon"><svg><use href="#history"/></svg></span><span class="row-main"><b>Пачка №{{ batch.pk }}</b><small>{% if request.user.is_superuser %}{{ batch.owner.get_username }} · {% endif %}Задач: {{ batch.job_count }} · {{ batch.created_at|date:"d.m.Y H:i" }}</small></span><svg><use href="#arrow"/></svg></a>
-  {% empty %}<div class="empty"><span class="file-icon"><svg><use href="#history"/></svg></span><div><b>Задач пока нет</b><p><a href="{% url 'workspace' %}">Перейти к конвертеру</a></p></div></div>{% endfor %}
-</div>
-{% include 'documents/pagination.html' %}
+  <div class="intro">
+    <h1>История обработки</h1>
+    <p>Пачки файлов, статусы операций и скачивание результатов.</p>
+  </div>
+  <div class="panel">
+    {% for batch in page %}
+      <a class="record-row" href="{% url 'batch_detail' batch.pk %}"><span class="file-icon"><svg><use href="#history" /></svg></span><span class="row-main"><b>Пачка №{{ batch.pk }}</b><small>{% if request.user.is_superuser %}{{ batch.owner.get_username }} · {% endif %}Задач: {{ batch.job_count }} · {{ batch.created_at|date:"d.m.Y H:i" }}</small></span><svg><use href="#arrow" /></svg></a>
+{% empty %}<div class="empty"><span class="file-icon"><svg><use href="#history" /></svg></span><div><b>Задач пока нет</b><p><a href="{% url 'workspace' %}">Перейти к конвертеру</a></p></div></div>{% endfor %}
+  </div>
+  {% include "documents/pagination.html" %}
 {% endblock %}

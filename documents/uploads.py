@@ -1,7 +1,6 @@
 from django.conf import settings
 from django.core.files.uploadhandler import StopUpload, TemporaryFileUploadHandler
 
-
 TOO_LARGE = "Файл больше 50 МБ."
 
 

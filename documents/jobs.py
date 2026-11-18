@@ -9,11 +9,11 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import F
 
-from .version_storage import check_archive_quota
 from .conversion import ConversionError, convert
 from .models import Batch, Job, JobInput, Result, Version
 from .operations import GROUPED, TOOLS, extension, supports
 from .storage import remove_files, stored_file, zip_files
+from .version_storage import check_archive_quota
 
 logger = logging.getLogger(__name__)
 
@@ -46,22 +46,31 @@ def enqueue(owner, batch_id, operation, options, ids):
     if selections is not None and selections.keys() != {str(pk) for pk in ids}:
         raise ValueError("Выбери страницы для каждого PDF.")
     check_queue_quota(owner, sum(valid for _, valid in groups))
-    jobs = Job.objects.bulk_create([
-        Job(
-            owner=owner, batch=batch, operation=operation,
-            options=options if selections is None else {
-                "pages": selections[str(group[0].pk)], "mode": options["mode"],
-            },
-            state=Job.State.QUEUED if valid else Job.State.FAILED,
-            error="" if valid else "Этот формат не подходит для выбранной операции.",
-        )
-        for group, valid in groups
-    ])
-    JobInput.objects.bulk_create([
-        JobInput(job=job, version=version, position=index)
-        for job, (group, _) in zip(jobs, groups)
-        for index, version in enumerate(group)
-    ])
+    jobs = Job.objects.bulk_create(
+        [
+            Job(
+                owner=owner,
+                batch=batch,
+                operation=operation,
+                options=options
+                if selections is None
+                else {
+                    "pages": selections[str(group[0].pk)],
+                    "mode": options["mode"],
+                },
+                state=Job.State.QUEUED if valid else Job.State.FAILED,
+                error="" if valid else "Этот формат не подходит для выбранной операции.",
+            )
+            for group, valid in groups
+        ]
+    )
+    JobInput.objects.bulk_create(
+        [
+            JobInput(job=job, version=version, position=index)
+            for job, (group, _) in zip(jobs, groups)
+            for index, version in enumerate(group)
+        ]
+    )
     batch.submitted = True
     batch.save(update_fields=["submitted"])
 
@@ -88,7 +97,8 @@ def requeue(owner, job_id):
 def claim():
     job = Job.objects.filter(state=Job.State.QUEUED).order_by("pk").first()
     if job is not None and Job.objects.filter(pk=job.pk, state=Job.State.QUEUED).update(
-        state=Job.State.RUNNING, attempts=F("attempts") + 1,
+        state=Job.State.RUNNING,
+        attempts=F("attempts") + 1,
     ):
         job.state = Job.State.RUNNING
         job.attempts += 1
@@ -118,7 +128,8 @@ def process(job):
             outputs = convert(job.operation, paths, job.options, work)
             if not outputs:
                 raise ConversionError("Готовых файлов нет.")
-            result_size = sum(output.stat().st_size for output in outputs)
+            sizes = [output.stat().st_size for output in outputs]
+            result_size = sum(sizes)
             if result_size > settings.MAX_RESULT_BYTES:
                 raise ConversionError("Результат обработки больше 500 МБ.")
             stem = Path(inputs[0].version.name).stem[:180]
@@ -127,15 +138,19 @@ def process(job):
                 bundle = work / "pages.zip"
                 zip_files(bundle, [(output, output.name) for output in outputs])
                 outputs = [bundle]
+                result_size = bundle.stat().st_size
+                sizes = [result_size]
+                if result_size > settings.MAX_RESULT_BYTES:
+                    raise ConversionError("Результат обработки больше 500 МБ.")
             with transaction.atomic():
-                check_archive_quota(job.owner, sum(output.stat().st_size for output in outputs))
-                for output in outputs:
+                check_archive_quota(job.owner, result_size)
+                for output, size in zip(outputs, sizes, strict=True):
                     name = f"{stem}{output.suffix}"
                     if separate:
                         name = f"{stem}-{output.name}"
                     elif name == inputs[0].version.name or job.operation in {"merge", "extract"}:
                         name = f"{stem}-{job.operation}{output.suffix}"
-                    result = Result.objects.create(job=job, name=name, size=output.stat().st_size)
+                    result = Result.objects.create(job=job, name=name, size=size)
                     created.append(result.key)
                     output.replace(stored_file(result.key))
                 Job.objects.filter(pk=job.pk).update(state=Job.State.DONE, error="")
@@ -161,7 +176,8 @@ def recover(directory):
         ).update(state=Job.State.FAILED, error="Эта операция больше недоступна.")
         interrupted = Job.objects.filter(state=Job.State.RUNNING)
         interrupted.filter(attempts__gte=2).update(
-            state=Job.State.FAILED, error="Обработка дважды прервалась. Задачу можно повторить вручную.",
+            state=Job.State.FAILED,
+            error="Обработка дважды прервалась. Задачу можно повторить вручную.",
         )
         interrupted.update(state=Job.State.QUEUED)
         live = {str(key) for key in Version.objects.values_list("key", flat=True).iterator()}

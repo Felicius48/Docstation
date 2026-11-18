@@ -18,6 +18,7 @@ from openpyxl import Workbook, load_workbook
 from PIL import Image
 from pypdf import PdfReader, PdfWriter
 
+from .conversion import command, structured
 from .models import Batch, Document, Job, RegistrationPolicy, Version
 from .spreadsheets import convert_spreadsheet
 from .storage import stored_file
@@ -33,7 +34,40 @@ class SpreadsheetSecurityTests(TestCase):
             sheet["A1"].data_type = "s"
             workbook.save(source)
             convert_spreadsheet(source, "csv", output)
-            self.assertEqual(output.read_text(encoding="utf-8-sig"), "\"'=1+2\",\"-42\",\"001\"\n")
+            self.assertEqual(output.read_text(encoding="utf-8-sig"), '"\'=1+2","-42","001"\n')
+
+
+class MarkdownSecurityTests(TestCase):
+    @skipUnless(which("pandoc"), "Pandoc is required for EPUB conversion")
+    def test_epub_extracts_book_images_without_reading_other_files(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            image = root / "cover.png"
+            Image.new("RGB", (6, 6), "red").save(image)
+            (root / "book.md").write_text("![Cover](cover.png)", encoding="utf-8")
+            book = root / "book.epub"
+            command(["pandoc", "book.md", "-o", book], root)
+            private = root / "private.sqlite3"
+            marker = b"DOCSTATION_PRIVATE_TEST_DATA"
+            private.write_bytes(marker)
+            source = root / "input.epub"
+            with ZipFile(book) as original, ZipFile(source, "w") as edited:
+                for item in original.infolist():
+                    content = original.read(item)
+                    if item.filename.endswith("ch001.xhtml"):
+                        content = content.replace(
+                            b"</body>",
+                            f'<p><img src="{private.as_uri()}" alt="private"/></p></body>'.encode(),
+                        )
+                    edited.writestr(item, content)
+            work = root / "work"
+            work.mkdir()
+            (result,) = structured("markdown", source, work)
+            with ZipFile(result) as archive:
+                markdown = archive.read("document.md").decode()
+                self.assertIn("private", markdown)
+                self.assertTrue(any(name.startswith("images/") for name in archive.namelist()))
+                self.assertFalse(any(marker in archive.read(name) for name in archive.namelist()))
 
 
 class RegistrationTests(TestCase):
@@ -47,8 +81,13 @@ class RegistrationTests(TestCase):
 
     def test_login_throttles_repeated_attempts(self):
         for _ in range(10):
-            self.assertEqual(self.client.post(reverse("login"), {"username": "missing", "password": "bad"}).status_code, 200)
-        self.assertEqual(self.client.post(reverse("login"), {"username": "MISSING", "password": "bad"}).status_code, 429)
+            self.assertEqual(
+                self.client.post(reverse("login"), {"username": "missing", "password": "bad"}).status_code,
+                200,
+            )
+        self.assertEqual(
+            self.client.post(reverse("login"), {"username": "MISSING", "password": "bad"}).status_code, 429
+        )
 
     def test_registration_creates_an_account_and_starts_a_session(self):
         url = reverse("login")
@@ -56,18 +95,31 @@ class RegistrationTests(TestCase):
         page = self.client.get(url)
         self.assertContains(page, "Создать аккаунт")
         self.assertEqual(page["Referrer-Policy"], "same-origin")
-        response = self.client.post(url, {
-            **self.credentials, "action": "register", "next": "https://example.com/",
-        })
+        response = self.client.post(
+            url,
+            {
+                **self.credentials,
+                "action": "register",
+                "next": "https://example.com/",
+            },
+        )
         self.assertRedirects(response, reverse("workspace"))
         user = get_user_model().objects.get(username=self.credentials["username"])
         self.assertTrue(user.check_password(self.credentials["password1"]))
         self.assertFalse(user.is_staff)
         self.assertEqual(int(self.client.session["_auth_user_id"]), user.pk)
         self.client.post(reverse("logout"))
-        self.assertRedirects(self.client.post(url, {
-            "username": user.username, "password": self.credentials["password1"], "next": reverse("history"),
-        }), reverse("history"))
+        self.assertRedirects(
+            self.client.post(
+                url,
+                {
+                    "username": user.username,
+                    "password": self.credentials["password1"],
+                    "next": reverse("history"),
+                },
+            ),
+            reverse("history"),
+        )
 
     def test_registration_requires_csrf_and_rejects_invalid_credentials(self):
         url = reverse("login")
@@ -104,7 +156,9 @@ class RegistrationTests(TestCase):
         self.assertEqual(page["Referrer-Policy"], "same-origin")
         self.assertRedirects(guest.post(invitation_url, registration), reverse("workspace"))
         self.assertEqual(guest.post(settings_url, {"action": "open"}).status_code, 404)
-        self.assertEqual(Client().post(invitation_url, {**registration, "username": "another"}).status_code, 403)
+        self.assertEqual(
+            Client().post(invitation_url, {**registration, "username": "another"}).status_code, 403
+        )
         self.assertRedirects(self.client.post(settings_url, {"action": "open"}), settings_url)
         self.assertContains(Client().get(login_url), "Создать аккаунт")
 
@@ -141,7 +195,8 @@ class ArchiveWorkflowTests(TransactionTestCase):
 
     def submit(self, batch, operation, versions, **options):
         return self.client.post(
-            batch["submit"], {"operation": operation, "versions": versions, **options},
+            batch["submit"],
+            {"operation": operation, "versions": versions, **options},
             content_type="application/json",
         )
 
@@ -181,6 +236,22 @@ class ArchiveWorkflowTests(TransactionTestCase):
         self.assertEqual(self.submit(self.new_batch(), "markdown", [first]).status_code, 404)
         self.client.force_login(self.owner)
 
+    def test_submit_accepts_a_full_pdf_selection_with_a_bounded_request(self):
+        batch = self.new_batch()
+        document = Document.objects.create(owner=self.owner, title="Пачка")
+        versions = Version.objects.bulk_create(
+            [Version(document=document, number=index, name="pages.pdf", size=1) for index in range(1, 51)]
+        )
+        ids = [version.pk for version in versions]
+        pages = list(range(1, 2001))
+        response = self.submit(batch, "extract", ids, selections={str(pk): pages for pk in ids})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Job.objects.count(), 50)
+        response = self.client.post(
+            batch["submit"], b" " * (2 * 1024 * 1024 + 1), content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 413)
+
     def test_worker_recovers_pending_jobs_and_exports_pdf(self):
         image = BytesIO()
         Image.new("RGB", (180, 90), "blue").save(image, format="PNG")
@@ -193,7 +264,7 @@ class ArchiveWorkflowTests(TransactionTestCase):
         Job.objects.update(state=Job.State.RUNNING, attempts=1)
         self.assertContains(self.client.get(batch_url, {"fragment": "jobs"}), 'role="progressbar"')
         orphan = stored_file(uuid4())
-        orphan.write_bytes(b'interrupted result')
+        orphan.write_bytes(b"interrupted result")
         call_command("worker", "--once", stdout=StringIO())
         self.assertFalse(orphan.exists())
         job = Job.objects.get()
@@ -237,9 +308,13 @@ class ArchiveWorkflowTests(TransactionTestCase):
         Image.effect_noise((800, 800), 80).convert("RGB").save(source, format="PDF", resolution=300)
         contents = source.getvalue()
         url = reverse("new_compression_preview")
-        preview = self.client.post(url, {
-            "strength": "0", "file": SimpleUploadedFile("scan.pdf", contents),
-        })
+        preview = self.client.post(
+            url,
+            {
+                "strength": "0",
+                "file": SimpleUploadedFile("scan.pdf", contents),
+            },
+        )
         self.assertEqual(preview.status_code, 201)
         preview_url = preview.json()["url"]
         call_command("worker", "--once", stdout=StringIO())
@@ -248,9 +323,15 @@ class ArchiveWorkflowTests(TransactionTestCase):
         self.assertEqual(ready["Cache-Control"], "no-store")
         self.assertEqual(self.client.post(preview_url, {"strength": "0"}).json(), ready.json())
         queued = self.client.post(preview_url, {"strength": "100"})
-        self.assertEqual(queued.json(), {
-            "state": Job.State.QUEUED, "strength": 100, "original": len(contents), "size": None,
-        })
+        self.assertEqual(
+            queued.json(),
+            {
+                "state": Job.State.QUEUED,
+                "strength": 100,
+                "original": len(contents),
+                "size": None,
+            },
+        )
         call_command("worker", "--once", stdout=StringIO())
         measured = self.client.get(preview_url).json()
         self.assertEqual(measured["state"], Job.State.DONE)
@@ -283,7 +364,9 @@ class ArchiveWorkflowTests(TransactionTestCase):
             with self.subTest(mode=mode):
                 batch = self.new_batch()
                 version = self.upload(batch, "source.pdf", source.getvalue()).json()["id"]
-                submission = self.submit(batch, "extract", [version], mode=mode, selections={str(version): [1, 3]})
+                submission = self.submit(
+                    batch, "extract", [version], mode=mode, selections={str(version): [1, 3]}
+                )
                 self.assertEqual(submission.status_code, 200)
                 call_command("worker", "--once", stdout=StringIO())
                 job = Job.objects.get(inputs__version=version)
@@ -294,7 +377,9 @@ class ArchiveWorkflowTests(TransactionTestCase):
                     data = self.download(reverse("download_result", args=[result.pk]))
                     self.assertEqual([page.mediabox.width for page in PdfReader(BytesIO(data)).pages], widths)
                 if mode == "separate":
-                    self.assertEqual([item.name for item in results], ["source-page-0001.pdf", "source-page-0003.pdf"])
+                    self.assertEqual(
+                        [item.name for item in results], ["source-page-0001.pdf", "source-page-0003.pdf"]
+                    )
                     bundle = self.download(reverse("download_batch", args=[job.batch_id]))
                     with ZipFile(BytesIO(bundle)) as archive:
                         self.assertEqual(archive.namelist(), [item.name for item in results])
@@ -304,8 +389,7 @@ class ArchiveWorkflowTests(TransactionTestCase):
         image = BytesIO()
         Image.new("RGB", (20, 10)).save(image, format="PNG")
         first, second = [
-            self.upload(batch, name, image.getvalue()).json()["id"]
-            for name in ("first.png", "second.png")
+            self.upload(batch, name, image.getvalue()).json()["id"] for name in ("first.png", "second.png")
         ]
         for ids in ([True], [first, first], [2**63]):
             with self.subTest(ids=ids):
@@ -319,7 +403,9 @@ class ArchiveWorkflowTests(TransactionTestCase):
 
         self.assertEqual(self.submit(batch, "images_pdf", [second, first]).status_code, 200)
         job = Job.objects.get()
-        self.assertEqual(list(job.inputs.order_by("position").values_list("version_id", flat=True)), [second, first])
+        self.assertEqual(
+            list(job.inputs.order_by("position").values_list("version_id", flat=True)), [second, first]
+        )
         call_command("worker", "--once", stdout=StringIO())
         data = self.download(reverse("download_result", args=[job.results.get().pk]))
         self.assertEqual(len(PdfReader(BytesIO(data)).pages), 2)
@@ -375,7 +461,9 @@ class ArchiveWorkflowTests(TransactionTestCase):
 
     def test_csv_converts_to_markdown_and_xlsx_preserving_values(self):
         batch = self.new_batch()
-        version = self.upload(batch, "data.csv", 'Имя;Код\n"строка | 1";001\nтекст;=1+1\n'.encode()).json()["id"]
+        version = self.upload(batch, "data.csv", 'Имя;Код\n"строка | 1";001\nтекст;=1+1\n'.encode()).json()[
+            "id"
+        ]
         submission = self.submit(batch, "markdown", [version])
         url = submission.json()["url"]
         fragment = self.client.get(url, {"fragment": "jobs"})
@@ -386,7 +474,9 @@ class ArchiveWorkflowTests(TransactionTestCase):
         self.assertEqual(self.submit(self.new_batch(), "convert", [version], target="xlsx").status_code, 200)
         call_command("worker", "--once", stdout=StringIO())
         markdown_job = Job.objects.get(operation="markdown")
-        with ZipFile(BytesIO(self.download(reverse("download_result", args=[markdown_job.results.get().pk])))) as archive:
+        with ZipFile(
+            BytesIO(self.download(reverse("download_result", args=[markdown_job.results.get().pk])))
+        ) as archive:
             self.assertIn(r"| строка \| 1 | 001 |", archive.read("document.md").decode())
         spreadsheet_job = Job.objects.get(operation="convert")
         data = self.download(reverse("download_result", args=[spreadsheet_job.results.get().pk]))

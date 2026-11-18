@@ -1,6 +1,7 @@
 @import url("vendor/sneat/core.css") layer(sneat);
 
-html[data-theme="light"], :root {
+html[data-theme="light"],
+:root {
   --primary: #5759de;
   --secondary: #4547bc;
   --accent: #fff;
@@ -25,14 +26,27 @@ html[data-theme="dark"] {
   --secondary: #4547bc;
   --breadcrumbs-bg: #33345c;
 }
-body { font-family: "Inter", "Segoe UI", system-ui, sans-serif; }
-#header { border-radius: 0 0 10px 10px; box-shadow: 0 2px 8px #22303e18; }
-#content-main .module, #content-related, #changelist {
+body {
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+#header {
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 2px 8px #22303e18;
+}
+#content-main .module,
+#content-related,
+#changelist {
   background: var(--body-bg);
   border: 1px solid var(--border-color);
   border-radius: 10px;
 }
 html[data-theme="light"] #content-main .module,
 html[data-theme="light"] #content-related,
-html[data-theme="light"] #changelist { background: #fff; }
-.module h2, .module caption, .inline-group h2 { border-radius: 9px 9px 0 0; }
+html[data-theme="light"] #changelist {
+  background: #fff;
+}
+.module h2,
+.module caption,
+.inline-group h2 {
+  border-radius: 9px 9px 0 0;
+}

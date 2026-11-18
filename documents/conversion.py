@@ -4,7 +4,6 @@ import shutil
 import subprocess
 import tempfile
 from contextlib import closing
-from pathlib import Path
 
 from .operations import IMAGES, extension, parse_pages
 from .spreadsheets import convert_spreadsheet, read_csv, write_csv
@@ -21,10 +20,12 @@ def command(args, cwd, *, capture=False):
     with tempfile.TemporaryFile(dir=cwd) as log:
         try:
             result = subprocess.run(
-                [str(arg) for arg in args], cwd=cwd,
+                [str(arg) for arg in args],
+                cwd=cwd,
                 stdout=subprocess.PIPE if capture else log,
                 stderr=log if capture else subprocess.STDOUT,
-                timeout=600, check=False,
+                timeout=600,
+                check=False,
             )
         except FileNotFoundError as exc:
             raise ConversionError(f"Установи инструмент {args[0]} или запусти обработчик в Docker.") from exc
@@ -33,7 +34,9 @@ def command(args, cwd, *, capture=False):
         if result.returncode:
             log_size = log.seek(0, os.SEEK_END)
             log.seek(max(0, log_size - 1800))
-            logger.warning("%s exited %s: %s", args[0], result.returncode, log.read().decode(errors="replace"))
+            logger.warning(
+                "%s exited %s: %s", args[0], result.returncode, log.read().decode(errors="replace")
+            )
             raise ConversionError("Инструмент не смог прочитать или обработать этот файл.")
         if capture:
             return result.stdout
@@ -42,8 +45,19 @@ def command(args, cwd, *, capture=False):
 def office(source, target, work):
     output_dir = work / "office"
     output_dir.mkdir(exist_ok=True)
-    command(["soffice", f"-env:UserInstallation={(work / 'lo-profile').as_uri()}",
-             "--headless", "--convert-to", target, "--outdir", output_dir, source], work)
+    command(
+        [
+            "soffice",
+            f"-env:UserInstallation={(work / 'lo-profile').as_uri()}",
+            "--headless",
+            "--convert-to",
+            target,
+            "--outdir",
+            output_dir,
+            source,
+        ],
+        work,
+    )
     output = output_dir / f"{source.stem}.{target}"
     if not output.is_file():
         raise ConversionError("LibreOffice не создал выходной файл.")
@@ -100,8 +114,9 @@ def image_export(source, target, output):
     format_name = {"jpg": "JPEG", "tiff": "TIFF"}.get(target, target.upper())
     if target == "tiff":
         frames = list(image_frames([source]))
-        frames[0].save(output, format=format_name, save_all=True, append_images=frames[1:],
-                       compression="tiff_deflate")
+        frames[0].save(
+            output, format=format_name, save_all=True, append_images=frames[1:], compression="tiff_deflate"
+        )
         return [output]
     outputs = []
     for index, frame in enumerate(image_frames([source]), 1):
@@ -162,8 +177,12 @@ def pdf_pages(operation, paths, options, work):
             command(["qpdf", "--warning-exit-0", "--split-pages", result, work / "split-%d.pdf"], work)
             repeated = len(set(pages)) != len(pages)
             return [
-                path.rename(work / (f"page-{number:04d}-{index:04d}.pdf" if repeated else f"page-{number:04d}.pdf"))
-                for index, (number, path) in enumerate(zip(pages, sorted(work.glob("split-*.pdf")), strict=True), 1)
+                path.rename(
+                    work / (f"page-{number:04d}-{index:04d}.pdf" if repeated else f"page-{number:04d}.pdf")
+                )
+                for index, (number, path) in enumerate(
+                    zip(pages, sorted(work.glob("split-*.pdf")), strict=True), 1
+                )
             ]
         return [result]
 
@@ -182,16 +201,29 @@ def compress_pdf(source, output, options):
         dpi = 300 - round(strength * 2.4)
         settings = ["-dPDFSETTINGS=/ebook"]
         for color, resolution in (("Color", dpi), ("Gray", dpi), ("Mono", dpi * 2)):
-            settings.extend([
-                f"-dDownsample{color}Images=true",
-                f"-d{color}ImageResolution={resolution}",
-                f"-d{color}ImageDownsampleThreshold=1.0",
-            ])
+            settings.extend(
+                [
+                    f"-dDownsample{color}Images=true",
+                    f"-d{color}ImageResolution={resolution}",
+                    f"-d{color}ImageDownsampleThreshold=1.0",
+                ]
+            )
     else:
         profile = {"small": "screen", "balanced": "ebook", "high": "printer"}[options["quality"]]
         settings = [f"-dPDFSETTINGS=/{profile}"]
-    command(["gs", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-sDEVICE=pdfwrite",
-             *settings, f"-sOutputFile={output}", source], output.parent)
+    command(
+        [
+            "gs",
+            "-dSAFER",
+            "-dBATCH",
+            "-dNOPAUSE",
+            "-sDEVICE=pdfwrite",
+            *settings,
+            f"-sOutputFile={output}",
+            source,
+        ],
+        output.parent,
+    )
     return output if output.stat().st_size < source.stat().st_size else source
 
 
@@ -230,9 +262,14 @@ def convert(operation, paths, options, work):
         return [output]
     converted = office(source, target, work)
     if target == "csv":
-        with converted.open(encoding="utf-8-sig", newline="") as handle, output.open(
-            "w", encoding="utf-8-sig", newline="",
-        ) as destination:
+        with (
+            converted.open(encoding="utf-8-sig", newline="") as handle,
+            output.open(
+                "w",
+                encoding="utf-8-sig",
+                newline="",
+            ) as destination,
+        ):
             write_csv(destination, read_csv(handle))
         return [output]
     return [converted]
@@ -279,10 +316,22 @@ def structured(operation, source, work):
             source = office(source, "docx", work)
         if suffix in {"xls", "xlsx", "ods", "ppt", "pptx", "odp"}:
             source = office(source, "html", work)
-        command(["pandoc", source, "--to=gfm-raw_html", "--extract-media=images",
-                 f"--resource-path={source.parent}", "-o", markdown], folder)
+            # Package only images generated beside the HTML in the isolated job directory.
+            for asset in source.parent.glob(f"{source.stem}_html_*"):
+                if (
+                    not asset.is_symlink()
+                    and asset.is_file()
+                    and extension(asset.name) in IMAGES | {"gif", "svg"}
+                ):
+                    shutil.copyfile(asset, folder / asset.name)
+        command(
+            ["pandoc", "--sandbox", source, "--to=gfm-raw_html", "--extract-media=images", "-o", markdown],
+            folder,
+        )
 
     output = work / "result.zip"
-    zip_files(output, [(path, path.relative_to(folder).as_posix())
-                       for path in sorted(folder.rglob("*")) if path.is_file()])
+    zip_files(
+        output,
+        [(path, path.relative_to(folder).as_posix()) for path in sorted(folder.rglob("*")) if path.is_file()],
+    )
     return [output]

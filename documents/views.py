@@ -12,14 +12,22 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods, require_POST
 
-from .version_storage import save_version
+from .file_responses import download, private_file_response
 from .jobs import can_retry, enqueue, requeue
 from .models import Batch, CompressionPreview, Job, Result, Version
-from .operations import TARGETS, TOOLS, WORKSPACE_SECTIONS, compression_strength, file_rules, validate_submission, workspace_section
+from .operations import (
+    TARGETS,
+    TOOLS,
+    WORKSPACE_SECTIONS,
+    compression_strength,
+    file_rules,
+    validate_submission,
+    workspace_section,
+)
 from .previews import create_preview, requeue_preview
 from .storage import stored_file, zip_files
 from .uploads import request_file
-from .file_responses import download, private_file_response
+from .version_storage import save_version
 
 
 @login_required
@@ -32,22 +40,32 @@ def workspace(request):
         selected = get_object_or_404(Version, pk=version, document__owner=request.user)
     section = workspace_section(selected.name) if selected else "office"
     title, _, _, operations = WORKSPACE_SECTIONS[section]
-    return render(request, "documents/workspace.html", {
-        "selected": selected,
-        "section": section, "sections": WORKSPACE_SECTIONS, "section_title": title,
-        "tools": [(key, TOOLS[key]) for key in operations], "targets": TARGETS,
-        "file_rules": file_rules(settings.MAX_BATCH_SIZE, settings.MAX_FILE_SIZE),
-    })
+    return render(
+        request,
+        "documents/workspace.html",
+        {
+            "selected": selected,
+            "section": section,
+            "sections": WORKSPACE_SECTIONS,
+            "section_title": title,
+            "tools": [(key, TOOLS[key]) for key in operations],
+            "targets": TARGETS,
+            "max_file_mb": settings.MAX_FILE_SIZE / 1_000_000,
+            "file_rules": file_rules(settings.MAX_BATCH_SIZE, settings.MAX_FILE_SIZE),
+        },
+    )
 
 
 @login_required
 @require_POST
 def new_batch(request):
     batch = Batch.objects.create(owner=request.user)
-    return JsonResponse({
-        "upload": reverse("upload", args=[batch.pk]),
-        "submit": reverse("submit", args=[batch.pk]),
-    })
+    return JsonResponse(
+        {
+            "upload": reverse("upload", args=[batch.pk]),
+            "submit": reverse("submit", args=[batch.pk]),
+        }
+    )
 
 
 @login_required
@@ -96,10 +114,14 @@ def compression_preview(request, pk):
             return JsonResponse({"error": str(exc)}, status=400)
         requeue_preview(previews, strength)
     preview = get_object_or_404(previews)
-    response = JsonResponse({
-        "state": preview.state, "strength": preview.strength,
-        "original": preview.source_size, "size": preview.result_size,
-    })
+    response = JsonResponse(
+        {
+            "state": preview.state,
+            "strength": preview.strength,
+            "original": preview.source_size,
+            "size": preview.result_size,
+        }
+    )
     response["Cache-Control"] = "no-store"
     return response
 
@@ -107,8 +129,12 @@ def compression_preview(request, pk):
 @login_required
 @require_POST
 def submit(request, pk):
+    payload_limit = 2 * 1024 * 1024
+    body = request.read(payload_limit + 1)
+    if len(body) > payload_limit:
+        return JsonResponse({"error": "Слишком большой запрос."}, status=413)
     try:
-        data = json.loads(request.body)
+        data = json.loads(body)
     except (ValueError, RecursionError):
         return JsonResponse({"error": "Проверь параметры операции."}, status=400)
     try:
@@ -127,12 +153,21 @@ def visible_to(queryset, user, owner="owner"):
 
 @login_required
 def history(request):
-    batches = visible_to(Batch.objects.filter(jobs__isnull=False), request.user).select_related("owner").annotate(
-        job_count=Count("jobs"),
-    ).order_by("-pk")
-    return render(request, "documents/history.html", {
-        "page": Paginator(batches, 30).get_page(request.GET.get("page")),
-    })
+    batches = (
+        visible_to(Batch.objects.filter(jobs__isnull=False), request.user)
+        .select_related("owner")
+        .annotate(
+            job_count=Count("jobs"),
+        )
+        .order_by("-pk")
+    )
+    return render(
+        request,
+        "documents/history.html",
+        {
+            "page": Paginator(batches, 30).get_page(request.GET.get("page")),
+        },
+    )
 
 
 @login_required
@@ -142,13 +177,16 @@ def batch_detail(request, pk):
     template = (
         "documents/batch_results.html" if request.GET.get("fragment") == "jobs" else "documents/batch.html"
     )
-    return render(request, template, {
-        "batch": batch,
-        "jobs": [(job, TOOLS.get(job.operation, "Старая операция"), can_retry(job))
-                 for job in jobs],
-        "active": any(job.state in (Job.State.QUEUED, Job.State.RUNNING) for job in jobs),
-        "ready": any(job.state == Job.State.DONE for job in jobs),
-    })
+    return render(
+        request,
+        template,
+        {
+            "batch": batch,
+            "jobs": [(job, TOOLS.get(job.operation, "Старая операция"), can_retry(job)) for job in jobs],
+            "active": any(job.state in (Job.State.QUEUED, Job.State.RUNNING) for job in jobs),
+            "ready": any(job.state == Job.State.DONE for job in jobs),
+        },
+    )
 
 
 @login_required

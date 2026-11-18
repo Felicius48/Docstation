@@ -1,0 +1,58 @@
+{% extends "documents/base.html" %}
+{% load people %}
+{% block title %}Задачи · DocStation{% endblock %}
+{% block content %}
+  <div class="intro">
+    <div class="section-head">
+      <h1>Задачи</h1>
+      <button class="button primary"
+              type="button"
+              id="add-task"
+              aria-haspopup="dialog"
+              aria-controls="task-dialog">Добавить</button>
+    </div>
+    <div class="form-footer">
+      <a class="button {% if sent %}secondary{% else %}primary{% endif %}"
+         href="{% url 'task_list' %}"
+         {% if not sent %}aria-current="page"{% endif %}>Входящие</a>
+      <a class="button {% if sent %}primary{% else %}secondary{% endif %}"
+         href="{% url 'task_sent' %}"
+         {% if sent %}aria-current="page"{% endif %}>Отправленные</a>
+    </div>
+  </div>
+  <section class="panel"
+           aria-label="{% if sent %}Отправленные задачи{% else %}Входящие задачи{% endif %}">
+    {% for record in page %}
+      <a class="record-row" href="{% url 'workflow_detail' record.pk %}">
+        <span class="row-main">
+          <b>{{ record.title }}</b>
+          <small>{{ record.purpose|truncatechars:110 }}</small>
+          <small>{% if sent %}Кому: {% for recipient in record.recipients.all %}{{ recipient|full_name|default:recipient.username }}{% endfor %}
+{% else %}От: {{ record.version.document.owner|full_name|default:record.version.document.owner.username }}{% endif %}</small>
+  </span>
+  <span class="workflow-state" data-state="{{ record.state }}">{{ record.get_state_display }}</span>
+  </a>
+{% empty %}<div class="empty"><p>Задач пока нет.</p></div>{% endfor %}
+</section>
+{% include "documents/pagination.html" %}
+<dialog class="task-dialog"
+        id="task-dialog"
+        aria-labelledby="task-dialog-title"
+        {% if form.errors %}data-invalid{% endif %}>
+  <h2 id="task-dialog-title">Простая отправка</h2>
+  <form class="approval-form workflow-create-form"
+        method="post"
+        enctype="multipart/form-data">
+    {% csrf_token %}
+    <label>
+      Файл документа<input type="file" name="file" required>
+    </label>
+    {{ form.as_div }}
+    {% if form.errors and request.FILES %}<p>Выберите файл заново перед отправкой.</p>{% endif %}
+    <div class="form-footer">
+      <button class="button secondary" type="button" data-close-task>Отмена</button>
+      <button class="button primary" type="submit">Отправить документ</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}

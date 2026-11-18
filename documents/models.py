@@ -4,9 +4,12 @@ from django.conf import settings
 from django.core.validators import RegexValidator
 from django.db import models
 
+WORKFLOW_TEXT_LIMIT = 4000
+
 
 class UserProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
+    patronymic = models.CharField("Отчество", max_length=150, blank=True)
     position = models.CharField("Должность", max_length=120, blank=True)
     phone = models.CharField("Телефон", max_length=50, blank=True)
     avatar = models.BinaryField(blank=True, default=bytes)
@@ -160,7 +163,9 @@ class ApprovalDecision(models.Model):
 
 class DocumentType(models.Model):
     code = models.CharField(
-        "Код", primary_key=True, max_length=12,
+        "Код",
+        primary_key=True,
+        max_length=12,
         validators=[RegexValidator(r"\A[A-ZА-ЯЁ0-9]+\Z", "Используй заглавные буквы или цифры.")],
         help_text="Код используется в регистрационном номере.",
     )
@@ -178,11 +183,17 @@ class DocumentType(models.Model):
 
 class WorkflowRecord(models.Model):
     class Mode(models.TextChoices):
+        TASK = "task", "Простая отправка"
         EDIT = "edit", "Редактирование и комментарии"
         APPROVAL = "approval", "Согласование и подписание"
 
     class State(models.TextChoices):
         CREATED = "created", "Создан"
+        SENT = "sent", "Отправлено"
+        RECEIVED = "received", "Получено"
+        IN_PROGRESS = "in_progress", "В работе"
+        DONE = "done", "Готово"
+        REWORK = "rework", "На переделке"
         SHARED = "shared", "На редактировании"
         REVIEW = "review", "На согласовании"
         SIGNED = "signed", "Подписан"
@@ -193,13 +204,14 @@ class WorkflowRecord(models.Model):
 
     version = models.ForeignKey(Version, on_delete=models.PROTECT)
     recipients = models.ManyToManyField(
-        settings.AUTH_USER_MODEL, blank=True,
+        settings.AUTH_USER_MODEL,
+        blank=True,
         related_name="received_workflow_cards",
     )
     title = models.CharField(max_length=255)
-    kind = models.ForeignKey(DocumentType, on_delete=models.PROTECT, db_column="kind")
-    purpose = models.TextField(max_length=4000)
-    description = models.TextField(blank=True, max_length=4000)
+    kind = models.ForeignKey(DocumentType, on_delete=models.PROTECT, db_column="kind", null=True)
+    purpose = models.TextField(max_length=WORKFLOW_TEXT_LIMIT)
+    description = models.TextField(blank=True, max_length=WORKFLOW_TEXT_LIMIT)
     mode = models.CharField(max_length=8, choices=Mode.choices, default=Mode.APPROVAL)
     state = models.CharField(max_length=12, choices=State.choices, default=State.CREATED)
     registration_number = models.CharField(max_length=32, unique=True, null=True, blank=True)
@@ -220,5 +232,5 @@ class WorkflowEvent(models.Model):
     is_comment = models.BooleanField(default=False)
     previous_state = models.CharField(max_length=12, choices=WorkflowRecord.State.choices, blank=True)
     state = models.CharField(max_length=12, choices=WorkflowRecord.State.choices)
-    comment = models.TextField(blank=True, max_length=4000)
+    comment = models.TextField(blank=True, max_length=WORKFLOW_TEXT_LIMIT)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -1,4 +1,5 @@
 """Extract the text, tables and images already stored in PDF files."""
+
 import re
 from pathlib import Path
 
@@ -60,9 +61,14 @@ def pdf_markdown(source, destination):
 
     found_text = False
     images = destination.parent / "images"
-    with source.open("rb") as handle, pdfplumber.open(source) as pdf, destination.open(
-        "w", encoding="utf-8",
-    ) as markdown:
+    with (
+        source.open("rb") as handle,
+        pdfplumber.open(source) as pdf,
+        destination.open(
+            "w",
+            encoding="utf-8",
+        ) as markdown,
+    ):
         image_pages = PdfReader(handle).pages
         for number, page in enumerate(pdf.pages, 1):
             tables = list(tables_on(page))

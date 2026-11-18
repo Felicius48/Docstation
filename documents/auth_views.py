@@ -23,7 +23,8 @@ def allow_login(username):
     cutoff = now - timedelta(minutes=5)
     LoginAttempt.objects.filter(window__lte=cutoff).delete()
     bucket, created = LoginAttempt.objects.get_or_create(
-        key=key, defaults={"window": now, "attempts": 1},
+        key=key,
+        defaults={"window": now, "attempts": 1},
     )
     if created:
         return True
@@ -40,7 +41,8 @@ class AccountView(LoginView):
 
     def invitation(self):
         return RegistrationInvitation.objects.filter(
-            pk=self.kwargs.get("token"), expires_at__gt=timezone.now(),
+            pk=self.kwargs.get("token"),
+            expires_at__gt=timezone.now(),
         )
 
     def get_context_data(self, **kwargs):
@@ -58,7 +60,8 @@ class AccountView(LoginView):
             if not allow_login(request.POST.get("username", "").strip()[:150]):
                 return HttpResponse(
                     "Слишком много попыток входа. Повтори через 5 минут.",
-                    status=429, headers={"Retry-After": "300"},
+                    status=429,
+                    headers={"Retry-After": "300"},
                 )
             return super().post(request, *args, **kwargs)
 
@@ -74,9 +77,13 @@ class AccountView(LoginView):
                 if allowed:
                     user = registration.save()
         if user is None:
-            return self.render_to_response(self.get_context_data(
-                form=self.get_form_class()(request=request), registration=registration,
-            ), status=200 if allowed else 403)
+            return self.render_to_response(
+                self.get_context_data(
+                    form=self.get_form_class()(request=request),
+                    registration=registration,
+                ),
+                status=200 if allowed else 403,
+            )
         login(request, user)
         return redirect(self.get_success_url())
 
@@ -99,8 +106,13 @@ def registration_settings(request):
             return HttpResponseBadRequest()
         invitation = RegistrationInvitation.objects.create(expires_at=timezone.now() + timedelta(days=7))
         invitation_url = request.build_absolute_uri(reverse("register_invited", args=[invitation.pk]))
-    response = render(request, "documents/registration_settings.html", {
-        "policy": policy, "invitation_url": invitation_url,
-    })
+    response = render(
+        request,
+        "documents/registration_settings.html",
+        {
+            "policy": policy,
+            "invitation_url": invitation_url,
+        },
+    )
     response["Cache-Control"] = "private, no-store"
     return response

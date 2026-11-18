@@ -14,12 +14,18 @@ from .models import UserProfile
 class ProfileTests(TestCase):
     def test_profile_menu_and_private_avatar_upload(self):
         users = get_user_model().objects
-        user = users.create_user("employee", email="employee@example.test")
+        user = users.create_user(
+            "employee", email="employee@example.test", first_name="Анна", last_name="Иванова"
+        )
         other = users.create_user("other")
-        UserProfile.objects.create(user=user, position="Инженер", phone="+7 123 456 78 90")
+        UserProfile.objects.create(
+            user=user, patronymic="Сергеевна", position="Инженер", phone="+7 123 456 78 90"
+        )
         self.client.force_login(user)
         page = self.client.get(reverse("workflow_records"))
         self.assertContains(page, 'class="profile-menu"')
+        self.assertContains(page, "<span>Иванова</span>")
+        self.assertContains(page, "<span>Анна Сергеевна</span>")
         self.assertContains(page, "Инженер")
         self.assertContains(page, "employee@example.test")
         self.assertContains(page, "+7 123 456 78 90")
@@ -28,17 +34,23 @@ class ProfileTests(TestCase):
         self.assertEqual(self.client.get(avatar_url).status_code, 404)
 
         with TemporaryDirectory() as directory, self.settings(FILE_UPLOAD_TEMP_DIR=directory):
-            self.client.post(avatar_url, {
-                "file": SimpleUploadedFile("broken.png", b"not an image"),
-            })
+            self.client.post(
+                avatar_url,
+                {
+                    "file": SimpleUploadedFile("broken.png", b"not an image"),
+                },
+            )
             self.assertEqual(self.client.get(avatar_url).status_code, 404)
             image = BytesIO()
             Image.new("RGB", (300, 200), "red").save(image, "PNG")
-            response = self.client.post(avatar_url, {
-                "file": SimpleUploadedFile("avatar.png", image.getvalue()),
-                "next": reverse("workflow_records"),
-                "user": other.pk,
-            })
+            response = self.client.post(
+                avatar_url,
+                {
+                    "file": SimpleUploadedFile("avatar.png", image.getvalue()),
+                    "next": reverse("workflow_records"),
+                    "user": other.pk,
+                },
+            )
         self.assertRedirects(response, reverse("workflow_records"))
         self.assertContains(self.client.get(reverse("workspace")), 'src="/profile/avatar/"')
         response = self.client.get(avatar_url)

@@ -155,7 +155,7 @@ if (converter) {
       name.className = "file-name";
       const detail = document.createElement("small");
       detail.textContent = item.error || item.progress ||
-        (!compatible(item.name) ? "Другой формат" : item.id ? "В архиве" : "");
+        (!compatible(item.name) ? "Другой формат" : item.id ? "Загружен" : "");
       if (item.error) detail.className = "file-error";
       item.progressLabel = detail;
       const remove = document.createElement("button");
@@ -165,9 +165,14 @@ if (converter) {
       remove.setAttribute("aria-label", "Убрать " + item.name);
       remove.disabled = busy;
       remove.addEventListener("click", () => {
+        const restoreFocus = document.activeElement === remove;
         files.splice(index, 1);
         message("");
         render();
+        if (restoreFocus) {
+          const next = list.children[Math.min(index, files.length - 1)];
+          (next?.querySelector("button.remove:not(.reorder)") || document.querySelector("#choose-files")).focus();
+        }
       });
       row.append(name, detail);
       if (operation.value === "compress" && compatible(item.name)) {
@@ -184,7 +189,7 @@ if (converter) {
         pick.textContent = item.pages ? "Страниц: " + item.pages.length : "Выбрать страницы";
         pick.setAttribute("aria-label", "Выбрать страницы: " + item.name);
         pick.disabled = busy;
-        pick.addEventListener("click", () => selectPdfPages(item));
+        pick.addEventListener("click", () => selectPdfPages(item, document.activeElement === pick));
         row.append(pick);
       }
       if (rules.grouped.includes(operation.value) && files.length > 1) {
@@ -232,7 +237,7 @@ if (converter) {
     render();
   }
 
-  async function selectPdfPages(item) {
+  async function selectPdfPages(item, restoreFocus = false) {
     if (!item || busy || pickingPages) return;
     pickingPages = true;
     try {
@@ -242,6 +247,7 @@ if (converter) {
         item.pages = selection.pages;
         extractionMode = selection.mode;
         render();
+        if (restoreFocus) list.children[files.indexOf(item)]?.querySelector(".pick-pages")?.focus();
       }
     } catch {
       message("Не удалось загрузить окно предпросмотра PDF.", "error");
@@ -406,7 +412,6 @@ if (converter) {
         const link = document.createElement("a");
         link.href = url;
         link.textContent = "Открыть обработку загруженных файлов";
-        link.className = "partial-result-link";
         const description = "Не загрузились: " + failed.map((item) => item.name).join(", ") + ". ";
         message(description, "error");
         status.append(link);
@@ -520,4 +525,51 @@ for (const picker of document.querySelectorAll("[data-recipient-picker]")) {
   search.addEventListener("input", updateRecipients);
   picker.addEventListener("change", updateRecipients);
   updateRecipients();
+}
+
+const taskDialog = document.querySelector("#task-dialog");
+if (taskDialog) {
+  document.querySelector("#add-task").addEventListener("click", () => taskDialog.showModal());
+  taskDialog.querySelector("[data-close-task]").addEventListener("click", () => taskDialog.close());
+  if (taskDialog.hasAttribute("data-invalid")) taskDialog.showModal();
+}
+
+const taskNotice = document.querySelector("[data-task-notice]");
+if (taskNotice) {
+  const links = taskNotice.querySelector("[data-task-links]");
+  let displayed = "";
+  let loading = false;
+
+  async function refreshTaskNotice() {
+    if (document.hidden || loading) return;
+    loading = true;
+    try {
+      const response = await fetch(taskNotice.dataset.taskNotice, { cache: "no-store" });
+      if (!response.ok || response.redirected) return;
+      const { tasks } = await response.json();
+      const ids = tasks.map((task) => task.id + ":" + task.state).join(",");
+      if (ids === displayed) return;
+      displayed = ids;
+      links.replaceChildren(...tasks.map((task) => {
+        const item = document.createElement("li");
+        const link = document.createElement("a");
+        link.href = task.url;
+        link.textContent = task.state === "rework" ? "На переделку: " + task.title : task.title;
+        item.append(link);
+        return item;
+      }));
+      taskNotice.hidden = !tasks.length;
+    } catch {
+      // Retry on the next refresh.
+    } finally {
+      loading = false;
+    }
+  }
+
+  taskNotice.querySelector("[data-dismiss-tasks]").addEventListener("click", () => {
+    taskNotice.hidden = true;
+  });
+  document.addEventListener("visibilitychange", refreshTaskNotice);
+  refreshTaskNotice();
+  setInterval(refreshTaskNotice, 15000);
 }

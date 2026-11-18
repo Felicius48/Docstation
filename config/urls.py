@@ -1,8 +1,9 @@
 from django.contrib.auth import views as auth
 from django.urls import include, path
+
 from documents.account_admin import account_admin
-from documents.profile_views import profile_avatar
 from documents.auth_views import AccountView, registration_settings
+from documents.profile_views import profile_avatar
 
 urlpatterns = [
     path("profile/avatar/", profile_avatar, name="profile_avatar"),

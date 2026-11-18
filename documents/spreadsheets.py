@@ -39,9 +39,7 @@ def csv_cell(value):
 
 
 def write_csv(output, rows):
-    csv.writer(output, quoting=csv.QUOTE_ALL).writerows(
-        [csv_cell(value) for value in row] for row in rows
-    )
+    csv.writer(output, quoting=csv.QUOTE_ALL).writerows([csv_cell(value) for value in row] for row in rows)
 
 
 def convert_spreadsheet(source, target, output):

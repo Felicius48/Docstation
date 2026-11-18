@@ -16,7 +16,10 @@ def preview_type(name):
 
 def private_file_response(handle, name, *, content_type=None):
     response = FileResponse(
-        handle, as_attachment=content_type is None, filename=name, content_type=content_type,
+        handle,
+        as_attachment=content_type is None,
+        filename=name,
+        content_type=content_type,
     )
     response["Cache-Control"] = "private, no-store"
     if content_type:
