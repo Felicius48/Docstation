@@ -24,6 +24,64 @@ from .spreadsheets import convert_spreadsheet
 from .storage import stored_file
 
 
+class PdfWordScanTests(TestCase):
+    @skipUnless(which("pandoc"), "Pandoc is required for DOCX verification")
+    def test_word_paragraphs_and_russian_hyphenation(self):
+        from xml.etree import ElementTree
+
+        from .pdf_paragraphs import reflow
+        from .structured import escape_markdown
+
+        uncertain = set()
+        lines = [
+            "1.1 Сторона принимает обяза-",
+            "тельство и предоставляет счёт-",
+            "фактуру.",
+            "1.2 Проверить редкое слово абв-",
+            "ёжз.",
+        ]
+        text = reflow(((line, 0, i * 12, i * 12 + 10, 1) for i, line in enumerate(lines)), uncertain)
+        self.assertEqual(uncertain, {"абв-ёжз"})
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "result.md"
+            source.write_text(escape_markdown(text), encoding="utf-8")
+            command(["pandoc", source, "--from=gfm", "-o", "result.docx"], root)
+            with ZipFile(root / "result.docx") as doc:
+                xml = ElementTree.fromstring(doc.read("word/document.xml"))
+            paragraphs = ["".join(p.itertext()) for p in xml.findall(".//{*}body/{*}p")]
+            self.assertEqual(
+                paragraphs,
+                [
+                    "1.1 Сторона принимает обязательство и предоставляет счёт-фактуру.",
+                    "1.2 Проверить редкое слово абв-ёжз.",
+                ],
+            )
+
+    def test_recognized_and_image_only_pages_are_reported_separately(self):
+        from .structured import pdf_markdown
+
+        with TemporaryDirectory() as directory:
+            work = Path(directory)
+            pdf = PdfWriter()
+            for _ in range(2):
+                pdf.add_blank_page(width=72, height=72)
+            source = work / "scan.pdf"
+            pdf.write(source)
+
+            def recognize(page, path, uncertain):
+                Image.new("RGB", (10, 10), "white").save(path)
+                return "Договор 123" if page.page_number == 1 else ""
+
+            output = work / "document.md"
+            pdf_markdown(source, output, recognize)
+            text = output.read_text()
+            self.assertIn("Договор 123", text)
+            self.assertIn("Распознанные страницы: 1.", text)
+            self.assertIn("Страницы в виде изображений: 2.", text)
+            self.assertTrue((work / "images/scan-2.png").exists())
+
+
 class SpreadsheetSecurityTests(TestCase):
     def test_xlsx_text_is_safe_when_exported_to_csv(self):
         with TemporaryDirectory() as directory:
@@ -118,7 +176,7 @@ class RegistrationTests(TestCase):
                     "next": reverse("history"),
                 },
             ),
-            reverse("history"),
+            reverse("history"), fetch_redirect_response=False,
         )
 
     def test_registration_requires_csrf_and_rejects_invalid_credentials(self):
@@ -221,7 +279,7 @@ class ArchiveWorkflowTests(TransactionTestCase):
         detail = self.client.get(submission.json()["url"])
         self.assertContains(detail, reverse("download_result", args=[result.pk]))
         self.assertContains(detail, reverse("download_version", args=[first]))
-        self.assertContains(detail, reverse("workflow_create", args=[first]))
+        self.assertNotContains(detail, "В ЭДО")
         with ZipFile(BytesIO(self.download(reverse("download_result", args=[result.pk])))) as markdown:
             self.assertEqual(markdown.read("document.md").decode(), "Первая версия")
 
@@ -519,7 +577,7 @@ class ArchiveWorkflowTests(TransactionTestCase):
         self.assertTrue(self.download(reverse("download_result", args=[completed.results.get().pk])))
 
     def test_pages_render_for_authenticated_user(self):
-        for route in ("workspace", "history", "workflow_records"):
+        for route in ("workspace", "task_list"):
             self.assertEqual(self.client.get(reverse(route)).status_code, 200)
         version = self.upload(self.new_batch(), "notes.txt", b"example").json()["id"]
 
@@ -531,5 +589,7 @@ class ArchiveWorkflowTests(TransactionTestCase):
         self.assertIn("merge", sections["pdf"]["tools"])
         self.assertEqual(set(sections["markdown"]["tools"]), {"markdown"})
         selected = self.client.get(reverse("workspace"), {"version": version})
-        self.assertEqual(selected.context["section"], "markdown")
-        self.assertContains(selected, 'value="markdown"')
+        self.assertEqual(selected.context["section"], "office")
+        self.assertContains(selected, 'id="tool-cards"')
+        self.assertContains(selected, 'id="history"')
+        self.assertRedirects(self.client.get(reverse("history")), reverse("workspace") + "#history")

@@ -37,14 +37,6 @@ WORKSPACE_SECTIONS = {
 }
 
 
-def workspace_section(name):
-    suffix = extension(name)
-    return next(
-        (key for key, (_, _, formats, _) in WORKSPACE_SECTIONS.items() if suffix in formats),
-        "office",
-    )
-
-
 def extension(name):
     suffix = Path(name).suffix[1:].lower()
     return {"jpeg": "jpg", "tif": "tiff"}.get(suffix, suffix)
@@ -119,6 +111,11 @@ def validate_options(operation, data):
         if target not in TARGETS:
             raise ValueError("Выбери выходной формат.")
         return {"target": target}
+    if operation == "pdf_word":
+        language = data.get("language", "rus+eng")
+        if language not in ("rus", "rus+eng"):
+            raise ValueError("Выберите язык распознавания.")
+        return {"language": language}
     if operation == "extract":
         mode = data.get("mode", "combined")
         if mode not in ("combined", "separate"):

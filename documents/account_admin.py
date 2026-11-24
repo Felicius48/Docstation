@@ -1,12 +1,15 @@
-from django.contrib.admin import AdminSite, ModelAdmin, StackedInline
+from django.contrib.admin import AdminSite, StackedInline
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.models import Group
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect
+from django.db import transaction
 
-from .models import DocumentType, UserProfile
+from .models import CompressionPreview, Result, UserProfile, Version
+from .previews import preview_source
+from .storage import remove_files
 
 
 class AccountAdminSite(AdminSite):
@@ -49,23 +52,25 @@ class AccountAdmin(UserAdmin):
     list_filter = ("is_active", "is_superuser", "groups")
     list_display = ("username", "email", "first_name", "last_name", "is_superuser")
 
+    def delete_model(self, request, obj):
+        keys = list(Version.objects.filter(document__owner=obj).values_list("key", flat=True))
+        keys.extend(Result.objects.filter(job__owner=obj).values_list("key", flat=True))
+        previews = list(CompressionPreview.objects.filter(owner=obj).values_list("pk", flat=True))
+        super().delete_model(request, obj)
+
+        def clean_files():
+            remove_files(keys)
+            for key in previews:
+                preview_source(key).unlink(missing_ok=True)
+
+        transaction.on_commit(clean_files, robust=True)
+
+    actions = None
+
     def has_delete_permission(self, request, obj=None):
-        return False
-
-
-class DocumentTypeAdmin(ModelAdmin):
-    list_display = ("name", "code", "is_active")
-    list_filter = ("is_active",)
-    search_fields = ("name", "code")
-
-    def get_readonly_fields(self, request, obj=None):
-        return ("code",) if obj else ()
-
-    def has_delete_permission(self, request, obj=None):
-        return False
+        return super().has_delete_permission(request, obj) and (obj is None or obj.pk != request.user.pk)
 
 
 account_admin = AccountAdminSite(name="account_admin")
 account_admin.register(get_user_model(), AccountAdmin)
 account_admin.register(Group, DepartmentAdmin)
-account_admin.register(DocumentType, DocumentTypeAdmin)

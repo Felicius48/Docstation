@@ -12,6 +12,19 @@ from .models import UserProfile
 
 
 class ProfileTests(TestCase):
+    def test_admin_can_confirm_user_deletion(self):
+        admin = get_user_model().objects.create_superuser("manager")
+        employee = get_user_model().objects.create_user("employee")
+        url = reverse("account_admin:auth_user_delete", args=[employee.pk])
+        self.client.force_login(employee)
+        self.assertEqual(self.client.post(url, {"post": "yes"}).status_code, 302)
+        self.client.force_login(admin)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertTrue(get_user_model().objects.filter(pk=employee.pk).exists())
+        self.assertEqual(self.client.post(url, {"post": "yes"}).status_code, 302)
+        self.assertFalse(get_user_model().objects.filter(pk=employee.pk).exists())
+        self.assertEqual(self.client.post(reverse("account_admin:auth_user_delete", args=[admin.pk]), {"post": "yes"}).status_code, 403)
+
     def test_profile_menu_and_private_avatar_upload(self):
         users = get_user_model().objects
         user = users.create_user(
@@ -22,7 +35,7 @@ class ProfileTests(TestCase):
             user=user, patronymic="Сергеевна", position="Инженер", phone="+7 123 456 78 90"
         )
         self.client.force_login(user)
-        page = self.client.get(reverse("workflow_records"))
+        page = self.client.get(reverse("task_list"))
         self.assertContains(page, 'class="profile-menu"')
         self.assertContains(page, "<span>Иванова</span>")
         self.assertContains(page, "<span>Анна Сергеевна</span>")
@@ -47,11 +60,11 @@ class ProfileTests(TestCase):
                 avatar_url,
                 {
                     "file": SimpleUploadedFile("avatar.png", image.getvalue()),
-                    "next": reverse("workflow_records"),
+                    "next": reverse("task_list"),
                     "user": other.pk,
                 },
             )
-        self.assertRedirects(response, reverse("workflow_records"))
+        self.assertRedirects(response, reverse("task_list"))
         self.assertContains(self.client.get(reverse("workspace")), 'src="/profile/avatar/"')
         response = self.client.get(avatar_url)
         self.assertEqual(response["Content-Type"], "image/webp")

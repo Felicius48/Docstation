@@ -1,3 +1,15 @@
+const themeButton = document.querySelector("#theme-toggle");
+function setTheme(dark) {
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  themeButton?.setAttribute("aria-pressed", String(dark));
+}
+const savedTheme = localStorage.getItem("docstation-theme");
+setTheme(savedTheme ? savedTheme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches);
+themeButton?.addEventListener("click", () => {
+  setTheme(document.documentElement.dataset.theme !== "dark");
+  localStorage.setItem("docstation-theme", document.documentElement.dataset.theme);
+});
+
 const converter = document.querySelector("#converter");
 
 if (converter) {
@@ -6,6 +18,9 @@ if (converter) {
   const fileInput = document.querySelector("#file-input");
   const dropzone = document.querySelector("#dropzone");
   const list = document.querySelector("#file-list");
+  const addCard = list.querySelector(".add-file-card");
+  const addButton = addCard.querySelector("button");
+  const uploadPrompt = dropzone.querySelector(".dropzone");
   const status = document.querySelector("#form-status");
   const operation = form.elements.operation;
   const target = form.elements.target;
@@ -18,13 +33,6 @@ if (converter) {
   const sections = document.querySelectorAll(".workspace-section");
   const drafts = new Map();
   const toolsBySection = new Map();
-  const sectionByFormat = new Map();
-  for (const [key, config] of Object.entries(rules.sections)) {
-    for (const format of config.formats) {
-      if (!sectionByFormat.has(format)) sectionByFormat.set(format, key);
-    }
-  }
-  fileInput.accept = [...sectionByFormat.keys()].map((format) => "." + format).join(",");
   let section = converter.dataset.section;
   let files = [];
   let busy = false;
@@ -40,10 +48,8 @@ if (converter) {
 
   if (converter.dataset.version) {
     const name = converter.dataset.versionName;
-    for (const [key, config] of Object.entries(rules.sections)) {
-      if (config.formats.includes(suffix(name))) {
-        drafts.set(key, [{ id: Number(converter.dataset.version), name, url: converter.dataset.versionUrl }]);
-      }
+    for (const key of Object.keys(rules.sections)) {
+      drafts.set(key, [{ id: Number(converter.dataset.version), name, url: converter.dataset.versionUrl }]);
     }
   }
   files = drafts.get(section) ?? [];
@@ -146,6 +152,7 @@ if (converter) {
   function render() {
     updateTargets();
     const scrollTop = list.scrollTop;
+    uploadPrompt.hidden = Boolean(files.length);
     list.hidden = !files.length;
     list.replaceChildren();
     files.forEach((item, index) => {
@@ -214,6 +221,8 @@ if (converter) {
       row.append(remove);
       list.append(row);
     });
+    list.append(addCard);
+    addButton.disabled = busy || files.length >= rules.maxFiles;
     list.scrollTop = scrollTop;
     for (const button of sections) {
       const key = button.dataset.section;
@@ -228,9 +237,10 @@ if (converter) {
 
   function pickTool(tool) {
     operation.value = tool;
+    for (const card of document.querySelectorAll("#tool-cards button")) card.setAttribute("aria-pressed", String(card.value === tool));
     for (const element of document.querySelectorAll("[data-option]")) {
       element.hidden = !({
-        target: tool === "convert", strength: tool === "compress",
+        target: tool === "convert", strength: tool === "compress", language: tool === "pdf_word",
       })[element.dataset.option];
     }
     message("");
@@ -264,9 +274,21 @@ if (converter) {
       button.setAttribute("aria-pressed", String(active));
       if (active) document.querySelector("#converter-title").textContent = button.querySelector(".workspace-label").textContent;
     }
-    operation.replaceChildren(...Object.entries(config.tools).map(([value, label]) => new Option(label, value)));
+    fileInput.accept = config.formats.map(ext => "." + ext).join(",");
+    document.querySelector("#tool-cards").replaceChildren(...Object.entries(config.tools).map(([value, label]) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.value = value;
+      card.textContent = label;
+      card.onclick = () => {
+        if (busy || pickingPages) return;
+        pickTool(value);
+        if (value === "extract") selectPdfPages(files.find(item => !item.pages));
+      };
+      return card;
+    }));
     document.querySelector("#supported-formats").textContent = config.formats.map((ext) => ext.toUpperCase()).join(", ");
-    pickTool(toolsBySection.get(key) ?? operation.value);
+    pickTool(toolsBySection.get(key) ?? Object.keys(config.tools)[0]);
   }
 
   function switchSection(key) {
@@ -282,34 +304,25 @@ if (converter) {
     if (busy || pickingPages) return;
     drafts.set(section, files);
     const errors = [];
-    const destinations = new Set();
     let limitReached = false;
     for (const file of incoming) {
-      const key = sectionByFormat.get(suffix(file.name));
-      if (!key) {
-        errors.push(file.name + " — формат не поддерживается.");
+      if (!rules.sections[section].formats.includes(suffix(file.name))) {
+        errors.push(file.name + " — формат не поддерживается в выбранном разделе.");
         continue;
       }
       if (!file.size || file.size > rules.maxBytes) {
         errors.push(file.name + " — проверь размер файла.");
         continue;
       }
-      const destination = section === "markdown" ? section : key;
-      const draft = drafts.get(destination) ?? [];
-      if (draft.length >= rules.maxFiles) {
+      if (files.length >= rules.maxFiles) {
         limitReached = true;
         continue;
       }
-      draft.push({ file, name: file.name });
-      drafts.set(destination, draft);
-      destinations.add(destination);
+      files.push({ file, name: file.name });
     }
-    const destination = destinations.values().next().value ?? section;
-    if (destination === section) render();
-    else switchSection(destination);
+    render();
     if (limitReached) errors.push("В каждом разделе можно выбрать до " + rules.maxFiles + " файлов.");
-    const notice = destinations.size > 1 ? "Файлы распределены по разделам." : "";
-    message([notice, ...errors].filter(Boolean).join(" "), errors.length ? "error" : "");
+    message(errors.join(" "), errors.length ? "error" : "");
     if (operation.value === "extract") selectPdfPages(files.find((item) => !item.pages));
   }
 
@@ -428,6 +441,7 @@ if (converter) {
   }
 
   document.querySelector("#choose-files").addEventListener("click", () => fileInput.click());
+  addButton.addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", () => {
     addFiles(fileInput.files);
     fileInput.value = "";
@@ -441,10 +455,6 @@ if (converter) {
     event.preventDefault();
     dropzone.classList.remove("drag");
     addFiles(event.dataTransfer.files);
-  });
-  operation.addEventListener("change", () => {
-    pickTool(operation.value);
-    if (operation.value === "extract") selectPdfPages(files.find((item) => !item.pages));
   });
   target.addEventListener("change", render);
   strength.addEventListener("input", () => {
@@ -503,35 +513,40 @@ if (profileMenu) {
   });
 }
 
-for (const picker of document.querySelectorAll("[data-recipient-picker]")) {
-  const search = picker.querySelector("[data-recipient-search]");
-  const status = picker.querySelector("[data-recipient-status]");
-  const choices = [...picker.querySelectorAll(".recipient-options label")];
-  search.closest("label").hidden = false;
-  status.hidden = false;
-  function updateRecipients() {
-    const query = search.value.trim().toLocaleLowerCase();
-    let selected = 0;
-    let matches = 0;
-    for (const choice of choices) {
-      const checked = choice.querySelector("input").checked;
-      const matchesQuery = choice.textContent.toLocaleLowerCase().includes(query);
-      choice.hidden = !matchesQuery;
-      selected += Number(checked);
-      matches += Number(matchesQuery);
-    }
-    status.textContent = (matches ? "" : "Пользователи не найдены. ") + "Выбрано: " + selected;
-  }
-  search.addEventListener("input", updateRecipients);
-  picker.addEventListener("change", updateRecipients);
-  updateRecipients();
-}
-
 const taskDialog = document.querySelector("#task-dialog");
 if (taskDialog) {
   document.querySelector("#add-task").addEventListener("click", () => taskDialog.showModal());
   taskDialog.querySelector("[data-close-task]").addEventListener("click", () => taskDialog.close());
   if (taskDialog.hasAttribute("data-invalid")) taskDialog.showModal();
+
+  let loading = false;
+  async function refreshTaskList() {
+    if (document.hidden || loading) return;
+    loading = true;
+    try {
+      const response = await fetch(location.href, {
+        cache: "no-store",
+        headers: { "X-Fragment": "tasks" },
+      });
+      if (!response.ok || response.redirected) return;
+      const page = new DOMParser().parseFromString(await response.text(), "text/html");
+      const current = document.querySelector("#task-results");
+      const next = page.querySelector("#task-results");
+      if (!next || current.isEqualNode(next)) return;
+      const focusedLink = current.contains(document.activeElement) ? document.activeElement.href : null;
+      current.replaceWith(next);
+      if (focusedLink) {
+        const link = Array.from(next.querySelectorAll("a")).find(item => item.href === focusedLink);
+        (link || document.querySelector("#add-task")).focus({ preventScroll: true });
+      }
+    } catch {
+      // Retry on the next refresh.
+    } finally {
+      loading = false;
+    }
+  }
+  document.addEventListener("visibilitychange", refreshTaskList);
+  setInterval(refreshTaskList, 3000);
 }
 
 const taskNotice = document.querySelector("[data-task-notice]");

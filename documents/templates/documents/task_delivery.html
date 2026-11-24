@@ -1,0 +1,15 @@
+{% load people %}
+<dl class="task-delivery">
+  <div>
+    <dt>Отправитель</dt>
+    <dd>{{ record.version.document.owner|full_name|default:"ФИО не указано" }}</dd>
+  </div>
+  <div>
+    <dt>Получатель</dt>
+    <dd>{% for person in record.recipients.all %}{{ person|full_name|default:"ФИО не указано" }}{% if not forloop.last %}, {% endif %}{% empty %}Получатель удалён{% endfor %}</dd>
+  </div>
+  <div>
+    <dt>Дата отправки</dt>
+    <dd><time datetime="{{ record.created_at|date:'c' }}">{{ record.created_at|date:"d.m.Y · H:i" }}</time></dd>
+  </div>
+</dl>

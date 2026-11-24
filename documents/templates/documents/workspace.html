@@ -28,16 +28,19 @@
       <h2 class="converter-title" id="converter-title">{{ section_title }}</h2>
       <form id="conversion-form">
         {% csrf_token %}
+        <input type="hidden" name="operation" id="operation">
+        <div id="tool-cards" role="group" aria-label="Действие с документом"></div>
         <div class="options">
-          <label>
-            Инструмент
-            <select name="operation" id="operation">
-              {% for key, label in tools %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
-            </select>
-          </label>
           <label data-option="target">
             Выходной формат
             <select name="target" id="target">{% for target in targets %}<option value="{{ target }}">{{ target|upper }}</option>{% endfor %}</select>
+          </label>
+          <label data-option="language" hidden>
+            Язык распознавания
+            <select name="language">
+              <option value="rus+eng">Русский и английский</option>
+              <option value="rus">Русский</option>
+            </select>
           </label>
           <div class="compression-setting" data-option="strength" hidden>
             <label for="compression-strength">
@@ -53,28 +56,36 @@
             <small id="compression-scale"><span>Исходный файл</span><span>Сильнее сжатие</span></small>
           </div>
         </div>
-        <div id="dropzone" class="dropzone">
-          <div class="upload-symbol">
-            <svg>
-              <use href="#upload" />
-            </svg>
+        <div id="dropzone">
+          <div class="dropzone">
+            <div class="upload-symbol">
+              <svg>
+                <use href="#upload" />
+              </svg>
+            </div>
+            <strong>Перетащи файлы сюда</strong>
+            <p>
+              или
+              <button type="button" class="text-button" id="choose-files">выбери на компьютере</button>
+            </p>
+            <small>Количество файлов: до {{ file_rules.maxFiles }} · до {{ max_file_mb|floatformat:"-6" }} МБ на файл</small>
+            <small class="supported-formats" id="supported-formats"></small>
           </div>
-          <strong>Перетащи файлы сюда</strong>
-          <p>
-            или
-            <button type="button" class="text-button" id="choose-files">выбери на компьютере</button>
-          </p>
-          <small>Количество файлов: до {{ file_rules.maxFiles }} · до {{ max_file_mb|floatformat:"-6" }} МБ на файл</small>
-          <small class="supported-formats" id="supported-formats"></small>
+          <ol class="file-list"
+              id="file-list"
+              aria-label="Выбранные файлы"
+              aria-live="polite"
+              tabindex="0"
+              hidden>
+            <li class="add-file-card">
+              <button type="button" id="add-files" aria-label="Добавить файлы">
+                <span aria-hidden="true">+</span>
+                Добавить
+              </button>
+            </li>
+          </ol>
           <input type="file" id="file-input" multiple hidden>
         </div>
-        <ol class="file-list"
-            id="file-list"
-            aria-label="Выбранные файлы"
-            aria-live="polite"
-            tabindex="0"
-            hidden>
-        </ol>
         <p id="form-status" class="form-status" role="status" hidden></p>
         <div class="form-footer">
           <button class="button primary" id="run" type="submit" disabled>
@@ -121,5 +132,6 @@
       </div>
     </div>
   </dialog>
+  {% include "documents/history.html" %}
   {{ file_rules|json_script:"file-rules" }}
 {% endblock %}

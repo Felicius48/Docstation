@@ -3,6 +3,7 @@
 import re
 from pathlib import Path
 
+from .pdf_paragraphs import pdf_lines, reflow
 from .spreadsheets import read_csv, write_workbook
 
 
@@ -55,11 +56,13 @@ def csv_markdown(source, destination):
                 write_markdown_table(output, read_csv(handle), width)
 
 
-def pdf_markdown(source, destination):
+def pdf_markdown(source, destination, recognize_page=None):
     import pdfplumber
     from pypdf import PdfReader
 
-    found_text = False
+    uncertain = set()
+    recognized = []
+    image_only = []
     images = destination.parent / "images"
     with (
         source.open("rb") as handle,
@@ -75,13 +78,29 @@ def pdf_markdown(source, destination):
             outside_tables = page
             for box, _ in tables:
                 outside_tables = outside_tables.outside_bbox(box)
-            text = outside_tables.extract_text()
+            text = (
+                reflow(pdf_lines(outside_tables.extract_words()), uncertain)
+                if recognize_page
+                else outside_tables.extract_text()
+            )
+            if recognize_page and not (text or "").strip() and not tables:
+                images.mkdir(exist_ok=True)
+                scan = images / f"scan-{number}.png"
+                recognized_text = recognize_page(page, scan, uncertain)
+                if recognized_text:
+                    markdown.write(escape_markdown(recognized_text) + "\n\n")
+                    recognized.append(number)
+                    scan.unlink()
+                else:
+                    markdown.write(f"![Страница {number}](images/{scan.name})\n\n")
+                    image_only.append(number)
+                page.close()
+                continue
             if text:
                 markdown.write(escape_markdown(text) + "\n\n")
             for _, rows in tables:
                 write_markdown_table(markdown, rows, max(map(len, rows)))
                 markdown.write("\n")
-            found_text = found_text or bool(text or tables)
             for index, item in enumerate(image_pages[number - 1].images, 1):
                 if item.image is None:
                     continue
@@ -96,4 +115,11 @@ def pdf_markdown(source, destination):
                     item.image.convert("RGBA").save(images / name)
                 markdown.write(f"![Страница {number}](images/{name})\n\n")
             page.close()
-    return found_text
+        if uncertain:
+            markdown.write("Проверить переносы: " + escape_markdown(", ".join(sorted(uncertain))) + ".\n\n")
+        for label, pages in (
+            ("Распознанные страницы", recognized),
+            ("Страницы в виде изображений", image_only),
+        ):
+            if pages:
+                markdown.write(f"{label}: {', '.join(map(str, pages))}.\n\n")

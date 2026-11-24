@@ -242,7 +242,7 @@ def convert(operation, paths, options, work):
         images_pdf(paths, output)
         return [output]
     if operation in {"markdown", "pdf_word", "pdf_tables"}:
-        return structured(operation, source, work)
+        return structured(operation, source, work, options)
     target = options["target"]
     output = work / f"result.{target}"
     if suffix == "pdf":
@@ -275,7 +275,19 @@ def convert(operation, paths, options, work):
     return [converted]
 
 
-def structured(operation, source, work):
+def recognize_page(page, image_path, uncertain, language):
+    from .pdf_paragraphs import ocr_lines, reflow
+
+    # Keep a large-format scan within the worker's memory budget.
+    dpi = min(300, 72 * 3500 / max(page.width, page.height))
+    page.to_image(resolution=dpi, antialias=True).original.save(image_path, dpi=(dpi, dpi))
+    result = command(
+        ["tesseract", image_path, "stdout", "-l", language, "tsv"], image_path.parent, capture=True
+    )
+    return reflow(ocr_lines(result.decode("utf-8")), uncertain)
+
+
+def structured(operation, source, work, options=None):
     from .structured import csv_markdown, pdf_markdown, pdf_tables
 
     suffix = extension(source.name)
@@ -295,10 +307,11 @@ def structured(operation, source, work):
     elif suffix == "csv":
         csv_markdown(source, markdown)
     elif suffix == "pdf":
-        found_text = pdf_markdown(source, markdown)
+        from functools import partial
+
+        recognize = partial(recognize_page, language=(options or {}).get("language", "rus+eng"))
+        pdf_markdown(source, markdown, recognize if operation == "pdf_word" else None)
         if operation == "pdf_word":
-            if not found_text:
-                raise ConversionError("В PDF нет текстового слоя для экспорта в Word.")
             output = work / "result.docx"
             command(["pandoc", markdown, "--from=gfm", "-o", output], folder)
             return [output]

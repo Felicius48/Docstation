@@ -13,7 +13,7 @@ python manage.py migrate --noinput
 
 python manage.py worker &
 worker=$!
-python manage.py runserver 127.0.0.1:8000 --noreload &
+python manage.py runserver 127.0.0.1:8000 &
 web=$!
 trap 'kill "$worker" "$web" 2>/dev/null || true; wait "$worker" "$web" 2>/dev/null || true' EXIT
 trap 'exit 130' INT

@@ -1,16 +1,13 @@
 {% extends "documents/base.html" %}
-{% load previews people %}
-{% block title %}{{ record.title }} · ЭДО · DocStation{% endblock %}
+{% load previews people static %}
+{% block title %}{{ record.title }} · Задачи · DocStation{% endblock %}
 {% block content %}
-  <header class="workflow-header">
-    {% if record.mode == "task" %}
+  <header class="workflow-header" id="task-header" data-revision="{{ record.revision|default:0 }}">
       {% if request.user == record.version.document.owner %}<a class="back"
                                                                href="{% url 'task_sent' %}">← К отправленным задачам</a>
 {% else %}<a class="back" href="{% url 'task_list' %}">← К входящим задачам</a>{% endif %}
-{% else %}<a class="back" href="{% url 'workflow_records' %}">← К карточкам ЭДО</a>{% endif %}
 <div class="workflow-heading">
   <div>
-    <p class="workflow-kind">{% if record.kind %}{{ record.kind.name }} · {% endif %}{{ record.get_mode_display }}{% if record.registration_number %} · {{ record.registration_number }}{% endif %}</p>
     <h1>{{ record.title }}</h1>
   </div>
   <span class="workflow-state" data-state="{{ record.state }}">{{ record.get_state_display }}</span>
@@ -20,7 +17,7 @@
   <div class="workflow-column">
     <section class="panel workflow-panel" aria-labelledby="workflow-document">
       <h2 id="workflow-document">Документ</h2>
-      <div class="workflow-file">
+      <div class="workflow-file" id="task-file">
         {% with icon=record.version.name|document_icon %}
           <span class="workflow-file-icon" data-format="{{ icon }}">
             {% include "documents/document_icon.html" with name=record.version.name size=32 only %}
@@ -36,34 +33,19 @@
         <a class="button secondary"
            href="{% url 'workflow_file' record.pk %}"><svg aria-hidden="true"><use href="#download" /></svg> Скачать</a>
       </div>
-      <dl class="workflow-meta">
-        <div>
-          <dt>Автор</dt>
-          <dd>
-            {{ record.version.document.owner.get_username }}
-          </dd>
-        </div>
-        <div><dt>Кому направлен</dt><dd>{% for recipient in record.recipients.all %}{{ recipient|full_name|default:"ФИО не указано" }}{% if not forloop.last %}, {% endif %}{% empty %}Получатели не указаны{% endfor %}</dd></div>
-        <div>
-          <dt>Создан</dt>
-          <dd>
-            {{ record.created_at|date:"d.m.Y H:i" }}
-          </dd>
-        </div>
-        {% if record.registered_at %}<div><dt>Дата регистрации</dt><dd>{{ record.registered_at|date:"d.m.Y" }}</dd></div>{% endif %}
-      </dl>
-      <h3>{% if record.mode == "task" %}Что нужно сделать{% else %}Назначение{% endif %}</h3><p class="preview-text">{{ record.purpose }}</p>
-      {% if record.description %}<h3>Описание</h3><p class="preview-text">{{ record.description }}</p>{% endif %}
+      {% include "documents/task_delivery.html" %}
+      <h3>Что нужно сделать</h3><p class="preview-text">{{ record.purpose }}</p>
     </section>
     <section class="panel workflow-panel"
              id="document-comments"
              aria-labelledby="workflow-comments-title">
       <h2 id="workflow-comments-title">Комментарии</h2>
+      <div id="task-comments" aria-live="polite">
       {% if comments %}
         <ol class="workflow-comments">
           {% for event in comments %}
             <li>
-              <div class="workflow-event-meta"><b>{{ event.actor.get_username }}</b><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time></div>
+              <div class="workflow-event-meta"><b>{{ event.actor.get_username|default:"Удалённый пользователь" }}</b><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time></div>
               {% if event.previous_state %}<span class="workflow-note">{{ event.get_state_display }}</span>{% endif %}
               {% if event.comment %}<p class="preview-text">{{ event.comment }}</p>{% endif %}
               {% if event.version %}
@@ -73,101 +55,47 @@
           {% endfor %}
         </ol>
       {% else %}<p class="workflow-note">Комментариев пока нет.</p>{% endif %}
-      <form class="workflow-form"
+      </div>
+      <form id="comment-form" class="workflow-form"
             method="post"
             action="{% url 'workflow_comment' record.pk %}#document-comments"
             enctype="multipart/form-data">
         {% csrf_token %}
         {{ comment_form.as_p }}
-        {% if can_replace_file or can_return_task %}
+        <div id="attachment-controls" {% if not can_replace_file and not can_return_task %}hidden{% endif %}>
           <label>
-            Новая версия файла<input type="file" name="file">
+            Новая версия файла<input type="file" name="file" {% if not can_replace_file and not can_return_task %}disabled{% endif %}>
           </label>
           <p class="workflow-note">{% if can_return_task %}Новая версия доступна при возврате на переделку.{% else %}Прикреплённый файл станет текущей версией.{% endif %}</p>
-        {% endif %}
+        </div>
         <div class="form-footer">
           <button class="button primary">Опубликовать</button>
-          {% if can_return_task %}<button class="button secondary"
+          <button {% if not can_return_task %}hidden disabled{% endif %} class="button secondary"
                                           name="action"
-                                          value="return">Вернуть на переделку</button>{% endif %}
+                                          value="return">Вернуть на переделку</button>
         </div>
       </form>
     </section>
   </div>
   <div class="workflow-column">
-    {% if details_form or recipient_form or transitions %}
+    <div id="task-actions" {% if not transitions %}hidden{% endif %}>
+    {% if transitions %}
       <section class="panel workflow-panel" aria-labelledby="workflow-actions">
         <h2 id="workflow-actions">Действия</h2>
-        {% if record.state == "created" %}
-          <p class="workflow-note">Получатели увидят карточку после отправки.</p>
-          {% if can_send %}
-            <form class="workflow-form"
-                  method="post"
-                  action="{% url 'workflow_detail' record.pk %}">
-              {% csrf_token %}<button class="button primary"
-                                      name="state"
-                                      value="{{ send_state }}">Отправить получателям</button>
-            </form>
-          {% endif %}
-        {% endif %}
-        {% if transitions %}
           <form class="workflow-form"
                 method="post"
                 action="{% url 'workflow_detail' record.pk %}">
             {% csrf_token %}
-            <input type="hidden"
-                   name="revision"
-                   value="{{ record.updated_at.isoformat }}">
-            {% if record.mode == "task" %}
               {% for value, label in transitions %}
                 <button class="button primary" name="state" value="{{ value }}">{% if value == "received" %}Подтвердить получение{% elif value == "in_progress" %}Взять в работу{% else %}Отметить готовым{% endif %}</button>
               {% endfor %}
-            {% else %}
-              <label>Следующий статус<select name="state">{% for value, label in transitions %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
-              <label>
-                Причина отклонения или отзыва<textarea name="comment"
-                                                       rows="2"
-                                                       maxlength="{{ workflow_text_limit }}"></textarea>
-              </label>
-              <button class="button secondary">Изменить статус</button>
-            {% endif %}
           </form>
-        {% endif %}
-        {% if recipient_form %}
-          <details class="workflow-action" {% if recipient_form.errors %}open{% endif %}>
-            <summary>Изменить получателей</summary>
-            <form class="workflow-form"
-                  method="post"
-                  action="{% url 'workflow_detail' record.pk %}">
-              {% csrf_token %}
-              {{ recipient_form.as_div }}
-              <button class="button secondary" name="action" value="assign">Сохранить получателей</button>
-            </form>
-          </details>
-        {% endif %}
-        {% if details_form %}
-          <details class="workflow-action" {% if details_form.errors %}open{% endif %}>
-            <summary>Редактировать карточку</summary>
-            <form class="workflow-form"
-                  method="post"
-                  enctype="multipart/form-data"
-                  action="{% url 'workflow_edit' record.pk %}">
-              {% csrf_token %}
-              <input type="hidden"
-                     name="revision"
-                     value="{{ record.updated_at.isoformat }}">
-              {{ details_form.as_p }}
-              {% if can_replace_file %}<label>Новая версия файла<input type="file"
-                                                                       name="file"></label>{% endif %}
-              <button class="button secondary">Сохранить изменения</button>
-            </form>
-          </details>
-        {% endif %}
       </section>
     {% endif %}
+    </div>
     {% if request.user.is_superuser %}
       <details class="panel workflow-panel workflow-delete">
-        <summary>Удалить ветку ЭДО</summary>
+        <summary>Удалить задачу</summary>
         <form class="workflow-form"
               method="post"
               action="{% url 'workflow_delete' record.pk %}">
@@ -179,11 +107,11 @@
     {% endif %}
     <section class="panel workflow-panel" aria-labelledby="workflow-history">
       <h2 id="workflow-history">Статусы и версии</h2>
-      <ol class="workflow-timeline">
+      <ol class="workflow-timeline" id="task-history">
         {% for event in events %}
           <li>
             <article class="workflow-step">
-              <div class="workflow-event-meta"><b>{{ event.actor.get_username }}</b><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time></div>
+              <div class="workflow-event-meta"><b>{{ event.actor.get_username|default:"Удалённый пользователь" }}</b><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time></div>
               <div class="workflow-step-title">
                 {% if event.previous_state %}<span>{{ event.get_previous_state_display }}</span><span aria-hidden="true">→</span>{% endif %}
                 <span class="workflow-state"
@@ -200,5 +128,7 @@
     </section>
   </div>
 </div>
+<p id="task-sync-message" role="status"></p>
 {% include "documents/preview_dialog.html" %}
+<script defer src="{% static 'documents/task-detail.js' %}"></script>
 {% endblock %}

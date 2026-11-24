@@ -1,0 +1,16 @@
+<div id="task-results">
+  <section class="panel"
+           aria-label="{% if sent %}Отправленные задачи{% else %}Входящие задачи{% endif %}">
+    {% for record in page %}
+      <a class="task-row" href="{% url 'workflow_detail' record.pk %}">
+        <div class="task-row-heading">
+          <strong>{{ record.title }}</strong>
+          <span class="workflow-state" data-state="{{ record.state }}">{{ record.get_state_display }}</span>
+        </div>
+        {% include "documents/task_delivery.html" %}
+        <p><b>Поручение</b> · {{ record.purpose|truncatechars:160 }}</p>
+      </a>
+    {% empty %}<div class="empty"><p>Задач пока нет.</p></div>{% endfor %}
+  </section>
+  {% include "documents/pagination.html" %}
+</div>

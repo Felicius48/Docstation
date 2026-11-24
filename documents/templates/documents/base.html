@@ -5,6 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>{% block title %}Docstation{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'documents/favicon.svg' %}">
     <link rel="stylesheet" href="{% static 'documents/app.css' %}">
     <script src="{% static 'documents/app.js' %}" defer></script>
   </head>
@@ -23,19 +24,8 @@
                   <use href="#convert" />
                 </svg><span>Конвертер</span>
               </a>
-              <a href="{% url 'history' %}"
-                 {% if route == 'history' or route == 'batch_detail' %}aria-current="page"{% endif %}>
-                <svg aria-hidden="true">
-                  <use href="#history" />
-                </svg><span>История</span>
-              </a>
-              <a href="{% url 'workflow_records' %}" {% if record.mode != 'task' %}{% if route == 'workflow_records' or route == 'workflow_detail' or route == 'workflow_create' or route == 'workflow_upload' or route == 'workflow_comment' or route == 'workflow_edit' %}aria-current="page"{% endif %}{% endif %}>
-                <svg aria-hidden="true">
-                  <use href="#documents" />
-                </svg><span>Документы</span>
-              </a>
               <a href="{% url 'task_list' %}"
-                 {% if route == 'task_list' or route == 'task_sent' or record.mode == 'task' %}aria-current="page"{% endif %}>
+                 {% if route == 'task_list' or route == 'task_sent' or route == 'workflow_detail' %}aria-current="page"{% endif %}>
                 <svg aria-hidden="true">
                   <use href="#documents" />
                 </svg><span>Задачи</span>
@@ -50,6 +40,7 @@
               {% endif %}
             {% endwith %}
           </nav>
+          <button type="button" id="theme-toggle" class="button secondary">Тёмная тема</button>
           <div class="sidebar-profile">
             {% if request.user.is_superuser %}
               <nav class="site-nav" aria-label="Администрирование">

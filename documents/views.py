@@ -22,7 +22,6 @@ from .operations import (
     compression_strength,
     file_rules,
     validate_submission,
-    workspace_section,
 )
 from .previews import create_preview, requeue_preview
 from .storage import stored_file, zip_files
@@ -38,17 +37,16 @@ def workspace(request):
         if not version.isascii() or not version.isdecimal() or len(version) > 18:
             raise Http404
         selected = get_object_or_404(Version, pk=version, document__owner=request.user)
-    section = workspace_section(selected.name) if selected else "office"
-    title, _, _, operations = WORKSPACE_SECTIONS[section]
+    section = "office"
     return render(
         request,
         "documents/workspace.html",
         {
+            "page": history_page(request),
             "selected": selected,
             "section": section,
             "sections": WORKSPACE_SECTIONS,
-            "section_title": title,
-            "tools": [(key, TOOLS[key]) for key in operations],
+            "section_title": WORKSPACE_SECTIONS[section][0],
             "targets": TARGETS,
             "max_file_mb": settings.MAX_FILE_SIZE / 1_000_000,
             "file_rules": file_rules(settings.MAX_BATCH_SIZE, settings.MAX_FILE_SIZE),
@@ -151,8 +149,7 @@ def visible_to(queryset, user, owner="owner"):
     return queryset if user.is_superuser else queryset.filter(**{owner: user})
 
 
-@login_required
-def history(request):
+def history_page(request):
     batches = (
         visible_to(Batch.objects.filter(jobs__isnull=False), request.user)
         .select_related("owner")
@@ -161,13 +158,12 @@ def history(request):
         )
         .order_by("-pk")
     )
-    return render(
-        request,
-        "documents/history.html",
-        {
-            "page": Paginator(batches, 30).get_page(request.GET.get("page")),
-        },
-    )
+    return Paginator(batches, 10).get_page(request.GET.get("page"))
+
+
+@login_required
+def history(request):
+    return redirect(reverse("workspace", query=request.GET, fragment="history"))
 
 
 @login_required
