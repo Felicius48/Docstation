@@ -1,0 +1,22 @@
+{% extends "documents/base.html" %}
+{% block title %}Отправить результат в задачу · DocStation{% endblock %}
+{% block content %}
+  <h1>Отправить результат в задачу</h1>
+  <section class="panel padded">
+    <p>{{ result.name }}</p>
+    {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+    {% if tasks %}
+      <form method="post" class="workflow-form">
+        {% csrf_token %}
+        <label>Задача
+          <select name="task" required>
+            <option value="">Выбери задачу</option>
+            {% for task in tasks %}<option value="{{ task.pk }}">{{ task.title }} · {{ task.created_at|date:"d.m.Y H:i" }}</option>{% endfor %}
+          </select>
+        </label>
+        <button class="button primary">Прикрепить как новую версию</button>
+      </form>
+    {% else %}<p>Нет задач, к которым можно прикрепить новую версию.</p>{% endif %}
+    <a href="{% url 'batch_detail' result.job.batch_id %}">К результатам обработки</a>
+  </section>
+{% endblock %}

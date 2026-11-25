@@ -20,6 +20,7 @@
     </div>
     <section class="panel converter"
              id="converter"
+             data-user="{{ request.user.pk }}"
              aria-labelledby="converter-title"
              data-section="{{ section }}"
              data-batch-url="{% url 'new_batch' %}"
@@ -56,6 +57,16 @@
             <small id="compression-scale"><span>Исходный файл</span><span>Сильнее сжатие</span></small>
           </div>
         </div>
+        <details class="panel padded">
+          <summary>Сценарии обработки</summary>
+          <div class="task-toolbar">
+            <select id="preset-select" aria-label="Сохранённый сценарий"></select>
+            <button class="button secondary" type="button" id="preset-load">Применить</button>
+            <button class="button secondary" type="button" id="preset-save">Сохранить текущие настройки</button>
+            <button class="button secondary" type="button" id="preset-remove">Удалить</button>
+          </div>
+        </details>
+        <button type="button" class="button secondary" id="edit-pdf-layout" hidden>Настроить страницы</button>
         <div id="dropzone">
           <div class="dropzone">
             <div class="upload-symbol">
@@ -129,6 +140,27 @@
           </select>
         </label>
         <button type="button" class="button primary" id="pdf-picker-apply" disabled>Подтвердить выбор</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="pdf-editor" class="pdf-picker" aria-labelledby="pdf-editor-title">
+    <div class="pdf-picker-inner">
+      <h2 id="pdf-editor-title">Редактор страниц PDF</h2>
+      <div class="task-toolbar">
+        <label>Источник <select id="editor-source"></select></label>
+        <button type="button" class="button secondary" id="editor-prev">Предыдущая</button>
+        <span role="status" id="editor-status"></span>
+        <button type="button" class="button secondary" id="editor-next">Следующая</button>
+        <button type="button" class="button secondary" id="editor-add">Добавить страницу</button>
+        <button type="button" class="button secondary" id="editor-all">Добавить все страницы файла</button>
+      </div>
+      <div class="version-comparison">
+        <div id="editor-preview"></div>
+        <div><h3>Порядок в итоговом PDF</h3><ol class="editor-pages" id="editor-pages"></ol></div>
+      </div>
+      <div class="form-footer">
+        <button type="button" class="button secondary" id="editor-close">Закрыть</button>
+        <button type="button" class="button primary" id="editor-apply">Подтвердить порядок</button>
       </div>
     </div>
   </dialog>

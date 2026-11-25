@@ -55,6 +55,7 @@ class Job(models.Model):
         RUNNING = "running", "Обрабатывается"
         DONE = "done", "Готово"
         FAILED = "failed", "Ошибка"
+        CANCELLED = "cancelled", "Отменено"
 
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     batch = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name="jobs")
@@ -128,7 +129,8 @@ class WorkflowRecord(models.Model):
         IN_PROGRESS = "in_progress", "В работе"
         DONE = "done", "Готово"
         REWORK = "rework", "На переделке"
-    version = models.ForeignKey(Version, on_delete=models.CASCADE)
+    version = models.ForeignKey(Version, on_delete=models.CASCADE, null=True, blank=True)
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sent_tasks")
     recipients = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         blank=True,
@@ -136,6 +138,7 @@ class WorkflowRecord(models.Model):
     )
     title = models.CharField(max_length=255)
     purpose = models.TextField(max_length=WORKFLOW_TEXT_LIMIT)
+    due_date = models.DateField(null=True, blank=True)
     state = models.CharField(max_length=12, choices=State.choices, default=State.CREATED)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

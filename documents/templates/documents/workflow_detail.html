@@ -1,9 +1,9 @@
 {% extends "documents/base.html" %}
-{% load previews people static %}
+{% load previews people static rich_text %}
 {% block title %}{{ record.title }} · Задачи · DocStation{% endblock %}
 {% block content %}
   <header class="workflow-header" id="task-header" data-revision="{{ record.revision|default:0 }}">
-      {% if request.user == record.version.document.owner %}<a class="back"
+      {% if request.user == record.sender %}<a class="back"
                                                                href="{% url 'task_sent' %}">← К отправленным задачам</a>
 {% else %}<a class="back" href="{% url 'task_list' %}">← К входящим задачам</a>{% endif %}
 <div class="workflow-heading">
@@ -16,8 +16,9 @@
 <div class="workflow-grid">
   <div class="workflow-column">
     <section class="panel workflow-panel" aria-labelledby="workflow-document">
-      <h2 id="workflow-document">Документ</h2>
-      <div class="workflow-file" id="task-file">
+      <h2 id="workflow-document">Данные задачи</h2>
+      <div class="workflow-file" id="task-file" {% if not record.version %}hidden{% endif %}>
+        {% if record.version %}
         {% with icon=record.version.name|document_icon %}
           <span class="workflow-file-icon" data-format="{{ icon }}">
             {% include "documents/document_icon.html" with name=record.version.name size=32 only %}
@@ -32,9 +33,16 @@
         {% include "documents/preview_button.html" with file=record.version %}
         <a class="button secondary"
            href="{% url 'workflow_file' record.pk %}"><svg aria-hidden="true"><use href="#download" /></svg> Скачать</a>
+        {% endif %}
       </div>
       {% include "documents/task_delivery.html" %}
-      <h3>Что нужно сделать</h3><p class="preview-text">{{ record.purpose }}</p>
+      <h3>Что нужно сделать</h3><div class="rich-message">{{ record.purpose|rich_message }}</div>
+      {% if attachments %}
+        <h3>Вложения к сообщению</h3>
+        {% for event in attachments %}
+          {% include "documents/workflow_event_attachment.html" with initial_attachment=True %}
+        {% endfor %}
+      {% endif %}
     </section>
     <section class="panel workflow-panel"
              id="document-comments"
@@ -47,7 +55,7 @@
             <li>
               <div class="workflow-event-meta"><b>{{ event.actor.get_username|default:"Удалённый пользователь" }}</b><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time></div>
               {% if event.previous_state %}<span class="workflow-note">{{ event.get_state_display }}</span>{% endif %}
-              {% if event.comment %}<p class="preview-text">{{ event.comment }}</p>{% endif %}
+              {% if event.comment %}<div class="rich-message">{{ event.comment|rich_message }}</div>{% endif %}
               {% if event.version %}
                 {% include "documents/workflow_event_attachment.html" %}
               {% endif %}
@@ -61,13 +69,8 @@
             action="{% url 'workflow_comment' record.pk %}#document-comments"
             enctype="multipart/form-data">
         {% csrf_token %}
-        {{ comment_form.as_p }}
-        <div id="attachment-controls" {% if not can_replace_file and not can_return_task %}hidden{% endif %}>
-          <label>
-            Новая версия файла<input type="file" name="file" {% if not can_replace_file and not can_return_task %}disabled{% endif %}>
-          </label>
-          <p class="workflow-note">{% if can_return_task %}Новая версия доступна при возврате на переделку.{% else %}Прикреплённый файл станет текущей версией.{% endif %}</p>
-        </div>
+        {{ comment_form.non_field_errors }}
+        {% include "documents/message_editor.html" with field=comment_form.comment %}
         <div class="form-footer">
           <button class="button primary">Опубликовать</button>
           <button {% if not can_return_task %}hidden disabled{% endif %} class="button secondary"
@@ -107,6 +110,7 @@
     {% endif %}
     <section class="panel workflow-panel" aria-labelledby="workflow-history">
       <h2 id="workflow-history">Статусы и версии</h2>
+      <a href="{% url 'compare_versions' record.pk %}">Сравнить версии</a>
       <ol class="workflow-timeline" id="task-history">
         {% for event in events %}
           <li>
@@ -120,7 +124,7 @@
               {% if event.version %}
                 {% include "documents/workflow_event_attachment.html" %}
               {% endif %}
-              {% if event.comment %}<p class="preview-text">{{ event.comment }}</p>{% endif %}
+              {% if event.comment %}<div class="rich-message">{{ event.comment|rich_message }}</div>{% endif %}
             </article>
           </li>
         {% empty %}<li><p class="workflow-note">Изменений пока нет.</p></li>{% endfor %}

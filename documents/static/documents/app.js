@@ -37,6 +37,8 @@ if (converter) {
   let files = [];
   let busy = false;
   let pickingPages = false;
+  let layout = [];
+  const editLayout = document.querySelector("#edit-pdf-layout");
   let extractionMode = "combined";
   let previewRevision = 0;
   let previewTimer;
@@ -151,6 +153,8 @@ if (converter) {
 
   function render() {
     updateTargets();
+    editLayout.hidden = operation.value !== "edit_pdf";
+    editLayout.disabled = busy || !files.length || files.some(item => !compatible(item.name));
     const scrollTop = list.scrollTop;
     uploadPrompt.hidden = Boolean(files.length);
     list.hidden = !files.length;
@@ -174,6 +178,7 @@ if (converter) {
       remove.addEventListener("click", () => {
         const restoreFocus = document.activeElement === remove;
         files.splice(index, 1);
+        layout = [];
         message("");
         render();
         if (restoreFocus) {
@@ -199,7 +204,7 @@ if (converter) {
         pick.addEventListener("click", () => selectPdfPages(item, document.activeElement === pick));
         row.append(pick);
       }
-      if (rules.grouped.includes(operation.value) && files.length > 1) {
+      if (rules.grouped.includes(operation.value) && operation.value !== "edit_pdf" && files.length > 1) {
         for (const [direction, label, icon] of [[-1, "Выше", "↑"], [1, "Ниже", "↓"]]) {
           const move = document.createElement("button");
           move.type = "button";
@@ -293,6 +298,7 @@ if (converter) {
 
   function switchSection(key) {
     if (key === section) return;
+    layout = [];
     toolsBySection.set(section, operation.value);
     section = key;
     files = drafts.get(key) ?? [];
@@ -381,6 +387,10 @@ if (converter) {
         return;
       }
     }
+    if (operation.value === "edit_pdf" && !layout.length) {
+      await configureLayout();
+      return;
+    }
     busy = true;
     const options = Object.fromEntries(new FormData(form));
     delete options.csrfmiddlewaretoken;
@@ -414,12 +424,16 @@ if (converter) {
       const url = (await post(batch.submit, {
           ...options,
           versions: uploaded.map((item) => item.id),
+          ...(options.operation === "edit_pdf" ? {
+            layout: layout.map(([file, page, angle]) => [uploaded.indexOf(file), page, angle]),
+          } : {}),
           ...(options.operation === "extract" ? {
             mode: extractionMode,
             selections: Object.fromEntries(uploaded.map((item) => [item.id, item.pages])),
           } : {}),
         })).url;
       files = failed;
+      layout = [];
       fileInput.value = "";
       if (failed.length) {
         const link = document.createElement("a");
@@ -439,6 +453,88 @@ if (converter) {
       render();
     }
   }
+
+  async function configureLayout() {
+    if (busy || pickingPages || editLayout.disabled) return;
+    pickingPages = true;
+    try {
+      const { openPdfEditor } = await import("./pdf-editor.js");
+      const chosen = await openPdfEditor(files, layout);
+      if (chosen) layout = chosen;
+    } catch {
+      message("Не удалось открыть редактор PDF.", "error");
+    } finally {
+      pickingPages = false;
+    }
+  }
+
+  editLayout.addEventListener("click", configureLayout);
+  const presetKey = "docstation-presets:" + converter.dataset.user;
+  const presetSelect = document.querySelector("#preset-select");
+  const presetRemove = document.querySelector("#preset-remove");
+  const builtInPresets = [
+    { name: "PDF для отправки", section: "pdf", operation: "compress", strength: "60" },
+    { name: "Сканы в один PDF", section: "images", operation: "images_pdf" },
+  ];
+  let presets = [];
+  try {
+    const saved = JSON.parse(localStorage.getItem(presetKey) || "[]");
+    if (Array.isArray(saved)) presets = saved.filter(item => rules.sections[item?.section]?.tools[item.operation]);
+  } catch {
+    // Start with the built-in presets.
+  }
+
+  function renderPresets(index = 0) {
+    presetSelect.replaceChildren(...[...builtInPresets, ...presets].map((preset, i) => new Option(preset.name, i)));
+    presetSelect.selectedIndex = index;
+    presetRemove.disabled = index < builtInPresets.length;
+  }
+
+  function savePresets(index) {
+    try {
+      localStorage.setItem(presetKey, JSON.stringify(presets));
+    } catch {
+      message("Хранилище браузера недоступно. Сценарии сохранятся до закрытия страницы.", "error");
+    }
+    renderPresets(index);
+  }
+
+  presetSelect.addEventListener("change", () => {
+    presetRemove.disabled = presetSelect.selectedIndex < builtInPresets.length;
+  });
+  document.querySelector("#preset-load").addEventListener("click", () => {
+    if (busy || pickingPages) return;
+    const preset = [...builtInPresets, ...presets][presetSelect.selectedIndex];
+    if (!preset) return;
+    drafts.set(section, files);
+    switchSection(preset.section);
+    pickTool(preset.operation);
+    for (const key of ["target", "strength", "language"]) {
+      if (preset[key] && (key !== "target" || [...target.options].some(option => option.value === preset.target))) {
+        form.elements[key].value = preset[key];
+      }
+    }
+    compressionValue.value = strength.value;
+    render();
+  });
+  document.querySelector("#preset-save").addEventListener("click", () => {
+    if (busy || pickingPages) return;
+    const name = window.prompt("Название сценария")?.trim().slice(0, 80);
+    if (!name) return;
+    const preset = { name, section, operation: operation.value, target: target.value,
+      strength: strength.value, language: form.elements.language.value };
+    const index = presets.findIndex(item => item.name === name);
+    if (index >= 0) presets[index] = preset;
+    else presets.push(preset);
+    savePresets((index >= 0 ? index : presets.length - 1) + builtInPresets.length);
+  });
+  presetRemove.addEventListener("click", () => {
+    const index = presetSelect.selectedIndex - builtInPresets.length;
+    if (index < 0) return;
+    presets.splice(index, 1);
+    savePresets(0);
+  });
+  renderPresets();
 
   document.querySelector("#choose-files").addEventListener("click", () => fileInput.click());
   addButton.addEventListener("click", () => fileInput.click());
@@ -547,44 +643,4 @@ if (taskDialog) {
   }
   document.addEventListener("visibilitychange", refreshTaskList);
   setInterval(refreshTaskList, 3000);
-}
-
-const taskNotice = document.querySelector("[data-task-notice]");
-if (taskNotice) {
-  const links = taskNotice.querySelector("[data-task-links]");
-  let displayed = "";
-  let loading = false;
-
-  async function refreshTaskNotice() {
-    if (document.hidden || loading) return;
-    loading = true;
-    try {
-      const response = await fetch(taskNotice.dataset.taskNotice, { cache: "no-store" });
-      if (!response.ok || response.redirected) return;
-      const { tasks } = await response.json();
-      const ids = tasks.map((task) => task.id + ":" + task.state).join(",");
-      if (ids === displayed) return;
-      displayed = ids;
-      links.replaceChildren(...tasks.map((task) => {
-        const item = document.createElement("li");
-        const link = document.createElement("a");
-        link.href = task.url;
-        link.textContent = task.state === "rework" ? "На переделку: " + task.title : task.title;
-        item.append(link);
-        return item;
-      }));
-      taskNotice.hidden = !tasks.length;
-    } catch {
-      // Retry on the next refresh.
-    } finally {
-      loading = false;
-    }
-  }
-
-  taskNotice.querySelector("[data-dismiss-tasks]").addEventListener("click", () => {
-    taskNotice.hidden = true;
-  });
-  document.addEventListener("visibilitychange", refreshTaskNotice);
-  refreshTaskNotice();
-  setInterval(refreshTaskNotice, 15000);
 }

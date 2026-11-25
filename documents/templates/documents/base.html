@@ -7,6 +7,7 @@
     <title>{% block title %}Docstation{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="{% static 'documents/favicon.svg' %}">
     <link rel="stylesheet" href="{% static 'documents/app.css' %}">
+    <script src="{% static 'documents/message-editor.js' %}" defer></script>
     <script src="{% static 'documents/app.js' %}" defer></script>
   </head>
   <body>
@@ -29,6 +30,9 @@
                 <svg aria-hidden="true">
                   <use href="#documents" />
                 </svg><span>Задачи</span>
+              </a>
+              <a href="{% url 'notifications' %}" {% if route == 'notifications' %}aria-current="page"{% endif %}>
+                <svg aria-hidden="true"><use href="#users" /></svg><span>Уведомления</span>
               </a>
               {% if request.user.is_superuser %}
                 <a href="{% url 'registration_settings' %}"
@@ -55,19 +59,7 @@
                                           role="status">{{ message }}</p>{% endfor %}
           {% block content %}{% endblock %}
         </main>
-        <aside class="panel task-notice"
-               data-task-notice="{% url 'task_notifications' %}"
-               aria-label="Уведомления о задачах"
-               hidden>
-          <div class="section-head">
-            <strong>Новые задачи</strong><button class="button secondary"
-                                                 type="button"
-                                                 data-dismiss-tasks
-                                                 aria-label="Закрыть уведомление">×</button>
-          </div>
-          <ul data-task-links aria-live="polite">
-          </ul>
-        </aside>
+        {% include "documents/notification_toast.html" %}
       </div>
     {% else %}
       {% block guest %}{% endblock %}

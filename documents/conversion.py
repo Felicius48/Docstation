@@ -161,6 +161,24 @@ def pdf_export(source, target, work):
 
 def pdf_pages(operation, paths, options, work):
     result = work / "result.pdf"
+    if operation == "edit_pdf":
+        layout = options["layout"]
+        counts = [
+            int(command(["qpdf", "--warning-exit-0", "--show-npages", path], work, capture=True))
+            for path in paths
+        ]
+        if any(page > counts[index] for index, page, _ in layout):
+            raise ConversionError("В PDF нет одной из выбранных страниц.")
+        selection = [part for index, page, _ in layout for part in (paths[index], str(page))]
+        assembled = work / "assembled.pdf"
+        command(["qpdf", "--warning-exit-0", "--empty", "--pages", *selection, "--", assembled], work)
+        rotations = []
+        for angle in (90, 180, 270):
+            positions = ",".join(str(i) for i, (_, _, rotation) in enumerate(layout, 1) if angle == rotation)
+            if positions:
+                rotations.append(f"--rotate=+{angle}:{positions}")
+        command(["qpdf", "--warning-exit-0", assembled, *rotations, result], work)
+        return [result]
     if operation == "merge":
         merge_pdfs(paths, result)
         return [result]
@@ -230,7 +248,7 @@ def compress_pdf(source, output, options):
 def convert(operation, paths, options, work):
     source = paths[0]
     suffix = extension(source.name)
-    if operation in {"merge", "split", "extract"}:
+    if operation in {"edit_pdf", "merge", "split", "extract"}:
         return pdf_pages(operation, paths, options, work)
     if operation == "compress":
         output = work / "result.pdf"

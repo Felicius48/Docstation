@@ -1,0 +1,17 @@
+{% extends "documents/base.html" %}
+{% block title %}Уведомления · DocStation{% endblock %}
+{% block content %}
+  <div class="intro"><h1>Уведомления</h1></div>
+  <section class="panel" aria-label="История уведомлений">
+    {% for event, label in notifications %}
+      <a class="task-row" href="{% url 'workflow_detail' event.record_id %}">
+        <div class="task-row-heading">
+          <strong>{{ event.record.title }}</strong>
+          <span>{{ label }}</span>
+        </div>
+        <time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y · H:i" }}</time>
+      </a>
+    {% empty %}<p class="empty">Уведомлений пока нет.</p>{% endfor %}
+  </section>
+  {% include "documents/pagination.html" %}
+{% endblock %}

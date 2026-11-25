@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from uuid import UUID
 
@@ -76,7 +77,7 @@ def enqueue(owner, batch_id, operation, options, ids):
 
 
 def can_retry(job):
-    if job.state != Job.State.FAILED or job.operation not in TOOLS:
+    if job.state not in {Job.State.FAILED, Job.State.CANCELLED} or job.operation not in TOOLS:
         return False
     inputs = job.inputs.all()
     return bool(inputs) and all(supports(job.operation, item.version.name, job.options) for item in inputs)
@@ -192,3 +193,15 @@ def recover(directory):
                 if str(key) == path.name:
                     orphaned.append(key)
     remove_files(orphaned)
+
+
+def queue_status(owner):
+    heartbeat = settings.DATA_DIR / "work" / "worker.heartbeat"
+    try:
+        online = time.time() - heartbeat.stat().st_mtime < 20
+    except FileNotFoundError:
+        online = False
+    return {
+        "online": online,
+        "queued": Job.objects.filter(owner=owner, state=Job.State.QUEUED).count(),
+    }

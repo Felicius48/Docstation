@@ -3,7 +3,7 @@
 <div class="job-actions">
   <a class="workflow-version-link" href="{{ download_url }}">
     {% include "documents/document_icon.html" with name=event.version.name size=16 only %}
-    <span>Версия {{ event.version.number }} · {{ event.version.name }}</span>
+    <span>{% if not initial_attachment %}Версия {{ event.version.number }} · {% endif %}{{ event.version.name }}</span>
     <svg aria-hidden="true">
       <use href="#download" />
     </svg>

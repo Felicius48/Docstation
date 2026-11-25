@@ -8,12 +8,13 @@ OFFICE = (
 IMAGES = {"jpg", "jpeg", "png", "webp", "tif", "tiff", "heic"}
 SUPPORTED = set.union(*OFFICE, IMAGES, {"pdf", "txt", "epub"})
 TARGETS = ["pdf", "docx", "odt", "xlsx", "ods", "csv", "pptx", "odp", "jpg", "png", "webp", "tiff", "txt"]
-GROUPED = {"merge", "images_pdf"}
-PDF_TOOLS = {"merge", "split", "extract", "compress", "pdf_word", "pdf_tables"}
+GROUPED = {"edit_pdf", "merge", "images_pdf"}
+PDF_TOOLS = {"edit_pdf", "merge", "split", "extract", "compress", "pdf_word", "pdf_tables"}
 
 TOOLS = {
     "convert": "Конвертация",
     "markdown": "В Markdown",
+    "edit_pdf": "Редактор страниц",
     "merge": "Объединить PDF",
     "split": "Разделить PDF",
     "extract": "Извлечь страницы",
@@ -31,7 +32,7 @@ WORKSPACE_SECTIONS = {
         "PDF",
         "pages",
         {"pdf"},
-        ("convert", "merge", "split", "extract", "compress", "pdf_word", "pdf_tables"),
+        ("convert", "edit_pdf", "merge", "split", "extract", "compress", "pdf_word", "pdf_tables"),
     ),
     "markdown": ("Markdown", "markdown", SUPPORTED, ("markdown",)),
 }
@@ -100,6 +101,8 @@ def validate_submission(data, max_files):
         raise ValueError(f"Выбери от 1 до {max_files} файлов.")
     if operation == "merge" and len(ids) < 2:
         raise ValueError("Для объединения нужны хотя бы два PDF.")
+    if operation == "edit_pdf" and any(index >= len(ids) for index, _, _ in options["layout"]):
+        raise ValueError("Обнови выбор страниц после изменения списка файлов.")
     return operation, options, ids
 
 
@@ -116,6 +119,20 @@ def validate_options(operation, data):
         if language not in ("rus", "rus+eng"):
             raise ValueError("Выберите язык распознавания.")
         return {"language": language}
+    if operation == "edit_pdf":
+        layout = data.get("layout")
+        if (
+            not isinstance(layout, list) or not 1 <= len(layout) <= 2000
+            or any(
+                not isinstance(row, list) or len(row) != 3
+                or any(type(value) is not int for value in row)
+                or not 0 <= row[0] < 50 or not 1 <= row[1] < 2**31
+                or row[2] not in {0, 90, 180, 270}
+                for row in layout
+            )
+        ):
+            raise ValueError("Собери итоговый PDF из 1–2000 страниц.")
+        return {"layout": layout}
     if operation == "extract":
         mode = data.get("mode", "combined")
         if mode not in ("combined", "separate"):

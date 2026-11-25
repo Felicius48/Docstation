@@ -23,9 +23,9 @@ def check_archive_quota(user, incoming_size):
         raise ValueError("Лимит архива достигнут. Удали ненужные документы.")
 
 
-def save_version(user, upload, batch_id=None, *, document=None):
+def save_version(user, upload, batch_id=None, *, document=None, result_path=None):
     name = version_name(upload)
-    if extension(name) not in SUPPORTED:
+    if result_path is None and extension(name) not in SUPPORTED:
         raise ValueError("Этот формат пока не поддерживается.")
     if upload.size > settings.MAX_FILE_SIZE:
         raise ValueError(TOO_LARGE)
@@ -50,7 +50,7 @@ def save_version(user, upload, batch_id=None, *, document=None):
             version = Version.objects.create(document=document, number=number, name=name, size=upload.size)
             key = version.key
             # The configured Django handler already placed the upload on the same volume.
-            os.replace(upload.temporary_file_path(), stored_file(key))
+            os.replace(result_path if result_path is not None else upload.temporary_file_path(), stored_file(key))
     except BaseException:
         if key:
             remove_files([key])

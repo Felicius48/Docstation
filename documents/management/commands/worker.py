@@ -1,5 +1,6 @@
 import fcntl
 import time
+from threading import Event, Thread
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -22,21 +23,39 @@ class Command(BaseCommand):
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as exc:
                 raise CommandError("A worker is already running.") from exc
-            recover(directory)
-            recover_previews(directory)
-            next_cleanup = 0
-            self.stdout.write("Docstation worker ready.")
-            while True:
-                close_old_connections()
-                if time.monotonic() >= next_cleanup:
-                    expire_previews()
-                    next_cleanup = time.monotonic() + 60
-                job = claim()
-                if job is not None:
-                    process(job)
-                elif process_preview():
-                    continue
-                elif options["once"]:
-                    return
-                else:
-                    time.sleep(1)
+            heartbeat = directory / "worker.heartbeat"
+            heartbeat.touch()
+            stop = Event()
+
+            def pulse():
+                while not stop.wait(5):
+                    heartbeat.touch()
+
+            thread = Thread(target=pulse, daemon=True)
+            thread.start()
+            try:
+                self.run_queue(directory, options["once"])
+            finally:
+                stop.set()
+                thread.join()
+                heartbeat.unlink(missing_ok=True)
+
+    def run_queue(self, directory, once):
+        recover(directory)
+        recover_previews(directory)
+        next_cleanup = 0
+        self.stdout.write("Docstation worker ready.")
+        while True:
+            close_old_connections()
+            if time.monotonic() >= next_cleanup:
+                expire_previews()
+                next_cleanup = time.monotonic() + 60
+            job = claim()
+            if job is not None:
+                process(job)
+            elif process_preview():
+                continue
+            elif once:
+                return
+            else:
+                time.sleep(1)

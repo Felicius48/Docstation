@@ -16,25 +16,36 @@
          href="{% url 'task_sent' %}"
          {% if sent %}aria-current="page"{% endif %}>Отправленные</a>
     </nav>
+    <form method="get" class="task-toolbar">
+      <label for="task-filter">Показать</label>
+      <select id="task-filter" name="filter">
+        <option value="">Все задачи</option>
+        <option value="overdue" {% if request.GET.filter == "overdue" %}selected{% endif %}>Просрочено</option>
+        <option value="today" {% if request.GET.filter == "today" %}selected{% endif %}>На сегодня</option>
+        <option value="waiting" {% if request.GET.filter == "waiting" %}selected{% endif %}>Жду ответа</option>
+      </select>
+      <button class="button secondary">Применить</button>
+    </form>
   </div>
   {% include "documents/task_rows.html" %}
 <dialog class="task-dialog"
         id="task-dialog"
         aria-labelledby="task-dialog-title"
         {% if form.errors %}data-invalid{% endif %}>
-  <h2 id="task-dialog-title">Простая отправка</h2>
+  <h2 id="task-dialog-title">Новая задача</h2>
   <form class="approval-form workflow-create-form"
         method="post"
         enctype="multipart/form-data">
     {% csrf_token %}
-    <label>
-      Файл документа<input type="file" name="file" required>
-    </label>
-    {{ form.as_div }}
-    {% if form.errors and request.FILES %}<p>Выберите файл заново перед отправкой.</p>{% endif %}
+    {{ form.non_field_errors }}
+    {{ form.title.as_field_group }}
+    {{ form.recipient.as_field_group }}
+    {{ form.due_date.as_field_group }}
+    {% include "documents/message_editor.html" with field=form.purpose multiple=True %}
+    {% if form.errors and request.FILES %}<p>Прикрепи файлы заново перед отправкой.</p>{% endif %}
     <div class="form-footer">
       <button class="button secondary" type="button" data-close-task>Отмена</button>
-      <button class="button primary" type="submit">Отправить документ</button>
+      <button class="button primary" type="submit">Отправить задачу</button>
     </div>
   </form>
 </dialog>

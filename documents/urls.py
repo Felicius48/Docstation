@@ -1,11 +1,14 @@
 from django.urls import path
 
-from . import views, workflow_views
+from . import task_documents, views, workflow_views
 
 urlpatterns = [
+    path("notifications/", workflow_views.notifications, name="notifications"),
     path("tasks/", workflow_views.task_list, name="task_list"),
     path("tasks/sent/", workflow_views.task_list, {"sent": True}, name="task_sent"),
     path("tasks/notifications/", workflow_views.task_notifications, name="task_notifications"),
+    path("tasks/<int:pk>/compare/", task_documents.compare_versions, name="compare_versions"),
+    path("file/result/<int:pk>/attach/", task_documents.attach_result, name="attach_result"),
     path("tasks/<int:pk>/delete/", workflow_views.workflow_delete, name="workflow_delete"),
     path("tasks/<int:pk>/comments/", workflow_views.workflow_comment, name="workflow_comment"),
     path(
@@ -33,6 +36,7 @@ urlpatterns = [
     path("api/batch/<int:pk>/submit/", views.submit, name="submit"),
     path("api/compression-preview/", views.new_compression_preview, name="new_compression_preview"),
     path("api/compression-preview/<uuid:pk>/", views.compression_preview, name="compression_preview"),
+    path("job/<int:pk>/cancel/", views.cancel_job, name="cancel_job"),
     path("job/<int:pk>/retry/", views.retry, name="retry"),
     path(
         "file/original/<int:pk>/preview/", views.download_version, {"preview": True}, name="preview_version"

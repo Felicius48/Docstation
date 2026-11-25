@@ -1,0 +1,8 @@
+{% load static %}
+<link rel="stylesheet" href="{% static 'documents/notification-toast.css' %}">
+<script defer src="{% static 'documents/notification-toast.js' %}"></script>
+<div id="notification-toasts"
+     data-url="{% url 'notifications' %}?fragment=toast"
+     data-user="{{ request.user.pk }}"
+     aria-live="polite"
+     aria-relevant="additions"></div>

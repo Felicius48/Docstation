@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_http_methods, require_POST
 
 from .file_responses import download, private_file_response
-from .jobs import can_retry, enqueue, requeue
+from .jobs import can_retry, enqueue, queue_status, requeue
 from .models import Batch, CompressionPreview, Job, Result, Version
 from .operations import (
     TARGETS,
@@ -180,6 +180,7 @@ def batch_detail(request, pk):
             "batch": batch,
             "jobs": [(job, TOOLS.get(job.operation, "Старая операция"), can_retry(job)) for job in jobs],
             "active": any(job.state in (Job.State.QUEUED, Job.State.RUNNING) for job in jobs),
+            "queue": queue_status(batch.owner),
             "ready": any(job.state == Job.State.DONE for job in jobs),
         },
     )
@@ -228,3 +229,12 @@ def download_batch(request, pk):
         archive.close()
         raise
     return private_file_response(archive, f"docstation-{pk}.zip")
+
+
+@login_required
+@require_POST
+def cancel_job(request, pk):
+    jobs = visible_to(Job.objects.all(), request.user)
+    job = get_object_or_404(jobs, pk=pk)
+    jobs.filter(pk=pk, state=Job.State.QUEUED).update(state=Job.State.CANCELLED)
+    return redirect("batch_detail", job.batch_id)

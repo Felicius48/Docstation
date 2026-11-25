@@ -12,8 +12,8 @@
     const controls = select("#attachment-controls");
     const updated = page.querySelector("#attachment-controls");
     controls.hidden = updated.hidden;
-    controls.querySelector("input").disabled = updated.hidden;
-    controls.querySelector("p").textContent = updated.querySelector("p").textContent;
+    controls.querySelectorAll("input, button").forEach(field => { field.disabled = updated.hidden; });
+    controls.querySelector("[data-file-status]").textContent = updated.querySelector("[data-file-status]").textContent;
     const returnButton = form.querySelector('[value="return"]');
     returnButton.hidden = returnButton.disabled = page.querySelector('[value="return"]').hidden;
   }
@@ -48,8 +48,7 @@
     if (submitting) return;
     submitting = true;
     const body = new FormData(form, event.submitter);
-    const fields = [...form.elements].filter(field => !field.disabled);
-    fields.forEach(field => { field.disabled = true; });
+    form.inert = true;
     try {
       const response = await fetch(form.getAttribute("action"), { method: "POST", body });
       const page = await parse(response);
@@ -60,15 +59,12 @@
       }
       form.reset();
       message.textContent = "";
-      fields.forEach(field => { field.disabled = false; });
       update(page);
     } catch {
       message.textContent = "Не удалось подтвердить отправку. Проверь историю задачи.";
     } finally {
       submitting = false;
-      for (const field of fields) {
-        if (!field.closest("[hidden]")) field.disabled = false;
-      }
+      form.inert = false;
     }
   });
 

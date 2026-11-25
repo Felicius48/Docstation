@@ -2,7 +2,7 @@
 <dl class="task-delivery">
   <div>
     <dt>Отправитель</dt>
-    <dd>{{ record.version.document.owner|full_name|default:"ФИО не указано" }}</dd>
+    <dd>{{ record.sender|full_name|default:"ФИО не указано" }}</dd>
   </div>
   <div>
     <dt>Получатель</dt>
@@ -12,4 +12,5 @@
     <dt>Дата отправки</dt>
     <dd><time datetime="{{ record.created_at|date:'c' }}">{{ record.created_at|date:"d.m.Y · H:i" }}</time></dd>
   </div>
+  {% if record.due_date %}<div><dt>Срок</dt><dd>{{ record.due_date|date:"d.m.Y" }}</dd></div>{% endif %}
 </dl>

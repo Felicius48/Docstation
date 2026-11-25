@@ -1,0 +1,53 @@
+#notification-toasts {
+  position: fixed;
+  z-index: 1100;
+  inset: auto 16px 16px auto;
+  width: min(350px, calc(100vw - 32px));
+}
+
+.notification-toast {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  color: var(--ink, #15213a);
+  background: var(--canvas, #fff);
+  border: 1px solid var(--accent, #0344dc);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px #0003;
+  touch-action: pan-y;
+  animation: notification-roll 220ms ease-out both;
+}
+
+.notification-toast.leaving {
+  animation-direction: reverse;
+  animation-name: notification-roll-out;
+}
+
+.notification-toast a {
+  color: var(--accent-dark, #0344dc);
+  overflow-wrap: anywhere;
+}
+
+.notification-toast button {
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font-size: 1.35rem;
+  cursor: pointer;
+}
+
+@keyframes notification-roll {
+  from { transform: translateX(110%) rotate(6deg); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes notification-roll-out {
+  from { transform: translateX(110%) rotate(6deg); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notification-toast, .notification-toast.leaving { animation-duration: 1ms; }
+}
