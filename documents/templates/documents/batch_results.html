@@ -1,28 +1,49 @@
-<section class="panel"
+{% load previews %}
+<section class="card"
          id="batch-results"
          {% if active %}data-poll="true"{% endif %}>
-  <div class="section-head padded"><h2>Задачи</h2>{% if ready %}<a class="button primary" href="{% url 'download_batch' batch.pk %}"><svg><use href="#download" /></svg> Скачать ZIP</a>{% endif %}</div>
-  {% if active %}<p class="padded" role="status">В очереди: {{ queue.queued }}. {% if not queue.online %}Воркер недоступен.{% endif %}</p>{% endif %}
+  <div class="section-head card-header mb-0">
+    <h2 class="card-title">Готовые файлы</h2>
+    {% if results|length == 1 %}
+      <a class="btn btn-primary" href="{% url 'download_result' results.0.pk %}"><svg aria-hidden="true"><use href="#download" /></svg> Скачать {{ results.0.name|document_suffix|default:"файл" }}</a>
+    {% elif results %}
+      <a class="btn btn-primary" href="{% url 'download_batch' batch.pk %}"><svg aria-hidden="true"><use href="#download" /></svg> Скачать всё в ZIP</a>
+    {% endif %}
+  </div>
+  {% if active %}<p class="alert {% if queue.online %}alert-info{% else %}alert-warning{% endif %} m-3" role="status">{% if queue.online %}<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>{% endif %}В очереди: {{ queue.queued }}. {% if not queue.online %}Воркер недоступен.{% endif %}</p>{% endif %}
   {% for job, label, retryable in jobs %}
-    <article class="job-row">
-      <div class="job-heading"><span class="file-icon"><svg><use href="#logo" /></svg></span><div class="row-main"><b>{% for item in job.inputs.all %}{{ item.version.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</b><small>{{ label }}</small></div><span class="badge {{ job.state }}">{{ job.get_state_display }}</span></div>
+    <article class="card-body border-bottom">
+      <div class="job-heading">
+        <span class="file-icon"><svg aria-hidden="true"><use href="#logo" /></svg></span>
+        <h3 class="h4 row-main mb-0">{{ label }}</h3>
+        <span class="badge {{ job.state }}">{% include "documents/status_icon.html" with state=job.state only %}{{ job.get_state_display }}</span>
+      </div>
       {% if job.state == "running" %}
-        <div class="job-progress" role="progressbar" aria-label="Обработка файлов"></div>
+        <div class="progress progress-sm mt-2" role="progressbar" aria-label="Обработка файлов"><span class="progress-bar progress-bar-indeterminate"></span></div>
       {% endif %}
-      {% if job.error %}<p class="job-error">{{ job.error }}</p>{% endif %}
-      <div class="job-actions">
+      {% if job.error %}<p class="alert alert-danger mt-2" role="alert">{{ job.error }}</p>{% endif %}
+      <ul class="list-group list-group-flush batch-files mt-2">
         {% for item in job.inputs.all %}
-          <a class="button secondary"
-             href="{% url 'download_version' item.version_id %}">Исходник · {{ item.version.name }}</a>
-
+          <li class="list-group-item batch-file">
+            <a class="btn btn-outline-secondary" href="{% url 'download_version' item.version_id %}">Исходник · {{ item.version.name }}</a>
+          </li>
         {% endfor %}
-        {% for result in job.results.all %}<a class="download-link" href="{% url 'download_result' result.pk %}"><svg><use href="#download" /></svg>{{ result.name }} <small>· {{ result.size|filesizeformat }}</small></a>{% url 'preview_result' result.pk as preview_url %}{% url 'download_result' result.pk as download_url %}
-          {% include "documents/preview_button.html" with file=result %}
-          {% if request.user.pk == batch.owner_id %}<a class="button secondary" href="{% url 'attach_result' result.pk %}">Отправить результат в задачу</a>{% endif %}
+        {% for result in job.results.all %}
+          {% url 'download_result' result.pk as download_url %}
+          {% url 'preview_result' result.pk as preview_url %}
+          <li class="list-group-item batch-file">
+            <a class="download-link" href="{{ download_url }}"><svg aria-hidden="true"><use href="#download" /></svg><span>{{ result.name }} <small>· {{ result.size|filesizeformat }}</small></span></a>
+            {% include "documents/preview_button.html" with file=result %}
+            {% if request.user.pk == batch.owner_id %}
+              <a class="btn btn-outline-secondary" href="{% url 'attach_result' result.pk %}">Отправить результат в задачу</a>
+            {% endif %}
+          </li>
         {% endfor %}
-        {% if job.state == "queued" %}<form method="post" action="{% url 'cancel_job' job.pk %}">{% csrf_token %}<button class="button secondary">Отменить</button></form>{% endif %}
-        {% if retryable %}<form method="post" action="{% url 'retry' job.pk %}">{% csrf_token %}<button class="button secondary">Повторить</button></form>{% endif %}
+      </ul>
+      <div class="job-actions">
+        {% if job.state == "queued" %}<form method="post" action="{% url 'cancel_job' job.pk %}">{% csrf_token %}<button class="btn btn-outline-secondary">Отменить</button></form>{% endif %}
+        {% if retryable %}<form method="post" action="{% url 'retry' job.pk %}">{% csrf_token %}<button class="btn btn-outline-secondary">Повторить</button></form>{% endif %}
       </div>
     </article>
-  {% empty %}<p class="empty">В этой пачке пока нет задач.</p>{% endfor %}
+  {% empty %}<p class="empty">В этой пачке пока нет операций.</p>{% endfor %}
 </section>

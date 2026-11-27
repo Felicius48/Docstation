@@ -1,6 +1,7 @@
 const themeButton = document.querySelector("#theme-toggle");
 function setTheme(dark) {
   document.documentElement.dataset.theme = dark ? "dark" : "light";
+  document.documentElement.dataset.bsTheme = document.documentElement.dataset.theme;
   themeButton?.setAttribute("aria-pressed", String(dark));
 }
 const savedTheme = localStorage.getItem("docstation-theme");
@@ -172,7 +173,7 @@ if (converter) {
       const remove = document.createElement("button");
       remove.type = "button";
       remove.textContent = "×";
-      remove.className = "remove";
+      remove.className = "btn btn-icon btn-sm btn-ghost-secondary remove";
       remove.setAttribute("aria-label", "Убрать " + item.name);
       remove.disabled = busy;
       remove.addEventListener("click", () => {
@@ -197,7 +198,7 @@ if (converter) {
       if (operation.value === "extract" && compatible(item.name)) {
         const pick = document.createElement("button");
         pick.type = "button";
-        pick.className = "button secondary pick-pages";
+        pick.className = "btn btn-outline-secondary pick-pages";
         pick.textContent = item.pages ? "Страниц: " + item.pages.length : "Выбрать страницы";
         pick.setAttribute("aria-label", "Выбрать страницы: " + item.name);
         pick.disabled = busy;
@@ -209,7 +210,7 @@ if (converter) {
           const move = document.createElement("button");
           move.type = "button";
           move.textContent = icon;
-          move.className = "remove reorder";
+          move.className = "btn btn-icon btn-sm btn-ghost-secondary remove reorder";
           move.setAttribute("aria-label", label + ": " + item.name);
           const position = index + direction;
           move.disabled = busy || position < 0 || position >= files.length;
@@ -280,9 +281,13 @@ if (converter) {
       if (active) document.querySelector("#converter-title").textContent = button.querySelector(".workspace-label").textContent;
     }
     fileInput.accept = config.formats.map(ext => "." + ext).join(",");
-    document.querySelector("#tool-cards").replaceChildren(...Object.entries(config.tools).map(([value, label]) => {
+    const cards = document.querySelector("#tool-cards");
+    cards.replaceChildren();
+    cards.hidden = Object.keys(config.tools).length === 1;
+    function toolCard(value, label) {
       const card = document.createElement("button");
       card.type = "button";
+      card.className = "btn btn-outline-secondary";
       card.value = value;
       card.textContent = label;
       card.onclick = () => {
@@ -291,7 +296,21 @@ if (converter) {
         if (value === "extract") selectPdfPages(files.find(item => !item.pages));
       };
       return card;
-    }));
+    }
+    if (key === "pdf") {
+      for (const [label, tools] of Object.entries(rules.pdfGroups)) {
+        const group = document.createElement("fieldset");
+        const legend = document.createElement("legend");
+        legend.textContent = label;
+        const buttons = document.createElement("div");
+        buttons.className = "tool-card-group";
+        buttons.append(...tools.map(value => toolCard(value, config.tools[value])));
+        group.append(legend, buttons);
+        cards.append(group);
+      }
+    } else if (!cards.hidden) {
+      cards.append(...Object.entries(config.tools).map(([value, label]) => toolCard(value, label)));
+    }
     document.querySelector("#supported-formats").textContent = config.formats.map((ext) => ext.toUpperCase()).join(", ");
     pickTool(toolsBySection.get(key) ?? Object.keys(config.tools)[0]);
   }
@@ -458,7 +477,7 @@ if (converter) {
     if (busy || pickingPages || editLayout.disabled) return;
     pickingPages = true;
     try {
-      const { openPdfEditor } = await import("./pdf-editor.js");
+      const { openPdfEditor } = await import("./pdf-editor.js?v=tabler-buttons");
       const chosen = await openPdfEditor(files, layout);
       if (chosen) layout = chosen;
     } catch {
@@ -597,20 +616,10 @@ async function refreshJobs() {
 
 if (document.querySelector("[data-poll]")) window.setTimeout(refreshJobs, 1800);
 
-const profileMenu = document.querySelector(".profile-menu");
-if (profileMenu) {
-  document.addEventListener("click", (event) => {
-    if (profileMenu.open && !profileMenu.contains(event.target)) profileMenu.open = false;
-  });
-  profileMenu.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || !profileMenu.open) return;
-    profileMenu.open = false;
-    profileMenu.querySelector("summary").focus();
-  });
-}
-
 const taskDialog = document.querySelector("#task-dialog");
 if (taskDialog) {
+  const filter = document.querySelector("#task-filter");
+  filter.addEventListener("change", () => filter.form.requestSubmit());
   document.querySelector("#add-task").addEventListener("click", () => taskDialog.showModal());
   taskDialog.querySelector("[data-close-task]").addEventListener("click", () => taskDialog.close());
   if (taskDialog.hasAttribute("data-invalid")) taskDialog.showModal();

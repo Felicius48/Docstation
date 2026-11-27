@@ -7,7 +7,7 @@
       <nav class="workspace-nav" aria-label="Разделы конвертера">
         {% for key, item in sections.items %}
           <button type="button"
-                  class="workspace-section"
+                  class="workspace-section btn btn-outline-secondary"
                   data-section="{{ key }}"
                   aria-controls="converter"
                   aria-pressed="{% if key == section %}true{% else %}false{% endif %}">
@@ -18,7 +18,7 @@
         {% endfor %}
       </nav>
     </div>
-    <section class="panel converter"
+    <section class="card converter"
              id="converter"
              data-user="{{ request.user.pk }}"
              aria-labelledby="converter-title"
@@ -26,19 +26,19 @@
              data-batch-url="{% url 'new_batch' %}"
              data-preview-url="{% url 'new_compression_preview' %}"
              {% if selected %}data-version="{{ selected.pk }}" data-version-name="{{ selected.name }}" data-version-url="{% url 'download_version' selected.pk %}"{% endif %}>
-      <h2 class="converter-title" id="converter-title">{{ section_title }}</h2>
-      <form id="conversion-form">
+      <header class="card-header"><h2 class="card-title" id="converter-title">{{ section_title }}</h2></header>
+      <form class="card-body" id="conversion-form">
         {% csrf_token %}
         <input type="hidden" name="operation" id="operation">
         <div id="tool-cards" role="group" aria-label="Действие с документом"></div>
         <div class="options">
           <label data-option="target">
             Выходной формат
-            <select name="target" id="target">{% for target in targets %}<option value="{{ target }}">{{ target|upper }}</option>{% endfor %}</select>
+            <select class="form-select" name="target" id="target">{% for target in targets %}<option value="{{ target }}">{{ target|upper }}</option>{% endfor %}</select>
           </label>
           <label data-option="language" hidden>
             Язык распознавания
-            <select name="language">
+            <select class="form-select" name="language">
               <option value="rus+eng">Русский и английский</option>
               <option value="rus">Русский</option>
             </select>
@@ -57,16 +57,16 @@
             <small id="compression-scale"><span>Исходный файл</span><span>Сильнее сжатие</span></small>
           </div>
         </div>
-        <details class="panel padded">
+        <details class="border-top py-3">
           <summary>Сценарии обработки</summary>
           <div class="task-toolbar">
-            <select id="preset-select" aria-label="Сохранённый сценарий"></select>
-            <button class="button secondary" type="button" id="preset-load">Применить</button>
-            <button class="button secondary" type="button" id="preset-save">Сохранить текущие настройки</button>
-            <button class="button secondary" type="button" id="preset-remove">Удалить</button>
+            <select class="form-select" id="preset-select" aria-label="Сохранённый сценарий"></select>
+            <button class="btn btn-outline-secondary" type="button" id="preset-load">Применить</button>
+            <button class="btn btn-outline-secondary" type="button" id="preset-save">Сохранить текущие настройки</button>
+            <button class="btn btn-outline-secondary" type="button" id="preset-remove">Удалить</button>
           </div>
         </details>
-        <button type="button" class="button secondary" id="edit-pdf-layout" hidden>Настроить страницы</button>
+        <button type="button" class="btn btn-outline-secondary" id="edit-pdf-layout" hidden>Настроить страницы</button>
         <div id="dropzone">
           <div class="dropzone">
             <div class="upload-symbol">
@@ -77,7 +77,7 @@
             <strong>Перетащи файлы сюда</strong>
             <p>
               или
-              <button type="button" class="text-button" id="choose-files">выбери на компьютере</button>
+              <button type="button" class="btn btn-link p-0" id="choose-files">выбери на компьютере</button>
             </p>
             <small>Количество файлов: до {{ file_rules.maxFiles }} · до {{ max_file_mb|floatformat:"-6" }} МБ на файл</small>
             <small class="supported-formats" id="supported-formats"></small>
@@ -89,7 +89,7 @@
               tabindex="0"
               hidden>
             <li class="add-file-card">
-              <button type="button" id="add-files" aria-label="Добавить файлы">
+              <button type="button" id="add-files" class="btn btn-outline-primary" aria-label="Добавить файлы">
                 <span aria-hidden="true">+</span>
                 Добавить
               </button>
@@ -97,9 +97,9 @@
           </ol>
           <input type="file" id="file-input" multiple hidden>
         </div>
-        <p id="form-status" class="form-status" role="status" hidden></p>
+        <p id="form-status" class="form-status alert" role="status" hidden></p>
         <div class="form-footer">
-          <button class="button primary" id="run" type="submit" disabled>
+          <button class="btn btn-primary" id="run" type="submit" disabled>
             Запустить обработку
             <svg>
               <use href="#arrow" />
@@ -111,56 +111,56 @@
   </div>
   <dialog class="pdf-picker" id="pdf-picker" aria-labelledby="pdf-picker-title">
     <div class="pdf-picker-inner">
-      <div class="section-head">
-        <h2 id="pdf-picker-title">Выбрать страницы PDF</h2>
+      <div class="section-head modal-header">
+        <h2 class="modal-title" id="pdf-picker-title">Выбрать страницы PDF</h2>
         <button type="button"
-                class="button secondary"
+                class="btn btn-outline-secondary"
                 id="pdf-picker-close"
                 autofocus>Закрыть</button>
       </div>
       <p class="pdf-picker-name" id="pdf-picker-name"></p>
       <p id="pdf-picker-status" role="status"></p>
       <div class="pdf-picker-controls" id="pdf-picker-controls" hidden>
-        <button type="button" class="button secondary" id="pdf-picker-all">Выбрать все</button>
-        <button type="button" class="button secondary" id="pdf-picker-clear">Снять выбор</button>
+        <button type="button" class="btn btn-outline-secondary" id="pdf-picker-all">Выбрать все</button>
+        <button type="button" class="btn btn-outline-secondary" id="pdf-picker-clear">Снять выбор</button>
         <span id="pdf-picker-count" role="status"></span>
       </div>
       <div class="pdf-thumbnails" id="pdf-picker-pages"></div>
       <div class="pdf-picker-controls" id="pdf-picker-navigation" hidden>
-        <button type="button" class="button secondary" id="pdf-picker-prev">Назад</button>
+        <button type="button" class="btn btn-outline-secondary" id="pdf-picker-prev">Назад</button>
         <span id="pdf-picker-range" role="status"></span>
-        <button type="button" class="button secondary" id="pdf-picker-next">Далее</button>
+        <button type="button" class="btn btn-outline-secondary" id="pdf-picker-next">Далее</button>
       </div>
-      <div class="form-footer">
+      <div class="form-footer modal-footer">
         <label>
           Результат для всей пачки
-          <select id="pdf-picker-mode">
+          <select class="form-select" id="pdf-picker-mode">
             <option value="combined">Один PDF</option>
             <option value="separate">Отдельный PDF на каждую страницу</option>
           </select>
         </label>
-        <button type="button" class="button primary" id="pdf-picker-apply" disabled>Подтвердить выбор</button>
+        <button type="button" class="btn btn-primary" id="pdf-picker-apply" disabled>Подтвердить выбор</button>
       </div>
     </div>
   </dialog>
   <dialog id="pdf-editor" class="pdf-picker" aria-labelledby="pdf-editor-title">
     <div class="pdf-picker-inner">
-      <h2 id="pdf-editor-title">Редактор страниц PDF</h2>
+      <h2 class="modal-title" id="pdf-editor-title">Редактор страниц PDF</h2>
       <div class="task-toolbar">
-        <label>Источник <select id="editor-source"></select></label>
-        <button type="button" class="button secondary" id="editor-prev">Предыдущая</button>
+        <label>Источник <select class="form-select" id="editor-source"></select></label>
+        <button type="button" class="btn btn-outline-secondary" id="editor-prev">Предыдущая</button>
         <span role="status" id="editor-status"></span>
-        <button type="button" class="button secondary" id="editor-next">Следующая</button>
-        <button type="button" class="button secondary" id="editor-add">Добавить страницу</button>
-        <button type="button" class="button secondary" id="editor-all">Добавить все страницы файла</button>
+        <button type="button" class="btn btn-outline-secondary" id="editor-next">Следующая</button>
+        <button type="button" class="btn btn-outline-secondary" id="editor-add">Добавить страницу</button>
+        <button type="button" class="btn btn-outline-secondary" id="editor-all">Добавить все страницы файла</button>
       </div>
       <div class="version-comparison">
         <div id="editor-preview"></div>
         <div><h3>Порядок в итоговом PDF</h3><ol class="editor-pages" id="editor-pages"></ol></div>
       </div>
-      <div class="form-footer">
-        <button type="button" class="button secondary" id="editor-close">Закрыть</button>
-        <button type="button" class="button primary" id="editor-apply">Подтвердить порядок</button>
+      <div class="form-footer modal-footer">
+        <button type="button" class="btn btn-outline-secondary" id="editor-close">Закрыть</button>
+        <button type="button" class="btn btn-primary" id="editor-apply">Подтвердить порядок</button>
       </div>
     </div>
   </dialog>

@@ -36,7 +36,7 @@ class ProfileTests(TestCase):
         )
         self.client.force_login(user)
         page = self.client.get(reverse("task_list"))
-        self.assertContains(page, 'class="profile-menu"')
+        self.assertContains(page, 'aria-controls="profile-dropdown"')
         self.assertContains(page, "<span>Иванова</span>")
         self.assertContains(page, "<span>Анна Сергеевна</span>")
         self.assertContains(page, "Инженер")

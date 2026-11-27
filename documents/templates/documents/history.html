@@ -3,10 +3,12 @@
     <h2 id="history-title">История обработки</h2>
     <p>Пачки файлов, статусы операций и скачивание результатов.</p>
   </div>
-  <div class="panel">
-    {% for batch in page %}
-      <a class="record-row" href="{% url 'batch_detail' batch.pk %}"><span class="file-icon"><svg><use href="#history" /></svg></span><span class="row-main"><b>Пачка №{{ batch.pk }}</b><small>{% if request.user.is_superuser %}{{ batch.owner.get_username }} · {% endif %}Задач: {{ batch.job_count }} · {{ batch.created_at|date:"d.m.Y H:i" }}</small></span><svg><use href="#arrow" /></svg></a>
-{% empty %}<div class="empty"><span class="file-icon"><svg><use href="#history" /></svg></span><div><b>Задач пока нет</b></div></div>{% endfor %}
+  <div class="card">
+    <div class="list-group list-group-flush">
+      {% for batch in page %}
+        <a class="record-row list-group-item list-group-item-action" href="{% url 'batch_detail' batch.pk %}"><span class="file-icon"><svg><use href="#history" /></svg></span><span class="row-main"><b>Пачка №{{ batch.pk }}</b><small>{% if request.user.is_superuser %}{{ batch.owner.get_username }} · {% endif %}Операций: {{ batch.job_count }} · {{ batch.created_at|date:"d.m.Y H:i" }}</small></span><svg><use href="#arrow" /></svg></a>
+  {% empty %}<div class="empty"><span class="file-icon"><svg><use href="#history" /></svg></span><p class="empty-title">Обработок пока нет</p></div>{% endfor %}
+    </div>
   </div>
   {% include "documents/pagination.html" with anchor="#history" %}
 </section>

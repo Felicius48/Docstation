@@ -3,62 +3,62 @@
 <html lang="ru">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="viewport" content="width=device-width,initial-scale=1,interactive-widget=resizes-content">
     <title>{% block title %}Docstation{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="{% static 'documents/favicon.svg' %}">
-    <link rel="stylesheet" href="{% static 'documents/app.css' %}">
-    <script src="{% static 'documents/message-editor.js' %}" defer></script>
-    <script src="{% static 'documents/app.js' %}" defer></script>
+    <link rel="stylesheet" href="{% static 'documents/app.css' %}?v=open-sans">
+    {% block extra_styles %}{% endblock %}
+    {% if request.user.is_authenticated %}
+      <script defer src="{% static 'documents/vendor/tabler/tabler.min.js' %}"></script>
+    {% endif %}
+    <script src="{% static 'documents/message-editor.js' %}?v=editor-v3" defer></script>
+    <script src="{% static 'documents/app.js' %}?v=action-spacing" defer></script>
   </head>
   <body>
     {% include "documents/icons.html" %}
     {% if request.user.is_authenticated %}
-      <div class="shell">
-        <aside class="site-sidebar">
-          <a href="{% url 'workspace' %}"
-             class="brand"><span class="brand-mark"><svg aria-hidden="true"><use href="#logo" /></svg></span>DocStation</a>
-          <nav class="site-nav" aria-label="Основное меню">
-            {% with route=request.resolver_match.url_name %}
-              <a href="{% url 'workspace' %}"
-                 {% if route == 'workspace' %}aria-current="page"{% endif %}>
-                <svg aria-hidden="true">
-                  <use href="#convert" />
-                </svg><span>Конвертер</span>
+      <div class="page shell">
+        {% with route=request.resolver_match.url_name %}
+          <aside class="navbar navbar-vertical navbar-expand-lg{% if route == 'workflow_detail' %} navbar-folded{% endif %}" aria-label="Боковая панель">
+            <div class="container-fluid">
+              <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#sidebar-menu"
+                      aria-controls="sidebar-menu" aria-expanded="false" aria-label="Основное меню"><span class="navbar-toggler-icon"></span></button>
+              <a href="{% url 'workspace' %}" class="navbar-brand" aria-label="DocStation — конвертер">
+                <span class="d-inline-flex align-items-center gap-2">
+                  <span class="brand-mark"><svg aria-hidden="true"><use href="#logo" /></svg></span>
+                  <span class="nav-link-title">DocStation</span>
+                </span>
               </a>
-              <a href="{% url 'task_list' %}"
-                 {% if route == 'task_list' or route == 'task_sent' or route == 'workflow_detail' %}aria-current="page"{% endif %}>
-                <svg aria-hidden="true">
-                  <use href="#documents" />
-                </svg><span>Задачи</span>
-              </a>
-              <a href="{% url 'notifications' %}" {% if route == 'notifications' %}aria-current="page"{% endif %}>
-                <svg aria-hidden="true"><use href="#users" /></svg><span>Уведомления</span>
-              </a>
-              {% if request.user.is_superuser %}
-                <a href="{% url 'registration_settings' %}"
-                   {% if route == 'registration_settings' %}aria-current="page"{% endif %}>
-                  <svg aria-hidden="true">
-                    <use href="#users" />
-                  </svg><span>Регистрация</span>
-                </a>
-              {% endif %}
-            {% endwith %}
-          </nav>
-          <button type="button" id="theme-toggle" class="button secondary">Тёмная тема</button>
-          <div class="sidebar-profile">
-            {% if request.user.is_superuser %}
-              <nav class="site-nav" aria-label="Администрирование">
-                <a href="{% url 'account_admin:index' %}"><svg aria-hidden="true"><use href="#settings" /></svg><span>Панель администрирования</span></a>
+              <div class="navbar-footer">
+                <ul class="navbar-nav">{% include "documents/profile_menu.html" %}</ul>
+              </div>
+              <nav id="sidebar-menu" class="collapse navbar-collapse" aria-label="Основное меню">
+                <ul class="navbar-nav">
+                  {% include "documents/sidebar_link.html" with destination="workspace" routes="workspace batch_detail" label="Конвертер" icon="convert" %}
+                  {% include "documents/sidebar_link.html" with destination="task_list" routes="task_list task_incoming task_sent workflow_detail compare_versions attach_result" label="Задачи" icon="documents" %}
+                  {% include "documents/sidebar_link.html" with destination="notifications" routes="notifications" label="Уведомления" icon="users" %}
+                  {% if request.user.is_superuser %}
+                    {% include "documents/sidebar_link.html" with destination="registration_settings" routes="registration_settings" label="Регистрация" icon="users" %}
+                    {% include "documents/sidebar_link.html" with destination="account_admin:index" label="Панель администрирования" icon="settings" %}
+                  {% endif %}
+                  <li class="nav-item">
+                    <button type="button" class="nav-link" id="theme-toggle" title="Тёмная тема">
+                      <span class="nav-link-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 13a9 9 0 0 1-9.8-9.8A9 9 0 1 0 20.8 13Z"/></svg></span>
+                      <span class="nav-link-title">Тёмная тема</span>
+                    </button>
+                  </li>
+                </ul>
               </nav>
-            {% endif %}
-            {% include "documents/profile_menu.html" %}
-          </div>
-        </aside>
+            </div>
+          </aside>
+        {% endwith %}
+        <div class="page-wrapper">
         <main class="content" id="main">
           {% for message in messages %}<p class="notice {{ message.tags }}"
                                           role="status">{{ message }}</p>{% endfor %}
           {% block content %}{% endblock %}
         </main>
+        </div>
         {% include "documents/notification_toast.html" %}
       </div>
     {% else %}

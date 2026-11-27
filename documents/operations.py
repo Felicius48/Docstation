@@ -24,6 +24,12 @@ TOOLS = {
     "images_pdf": "Фото в PDF",
 }
 
+PDF_GROUPS = {
+    "Изменить формат": ("convert", "pdf_word", "pdf_tables"),
+    "Работа со страницами": ("edit_pdf", "merge", "split", "extract"),
+    "Сжатие": ("compress",),
+}
+
 OFFICE_FORMATS = set.union(*OFFICE)
 WORKSPACE_SECTIONS = {
     "office": ("Офисные документы", "word", OFFICE_FORMATS, ("convert",)),
@@ -32,7 +38,7 @@ WORKSPACE_SECTIONS = {
         "PDF",
         "pages",
         {"pdf"},
-        ("convert", "edit_pdf", "merge", "split", "extract", "compress", "pdf_word", "pdf_tables"),
+        tuple(tool for group in PDF_GROUPS.values() for tool in group),
     ),
     "markdown": ("Markdown", "markdown", SUPPORTED, ("markdown",)),
 }
@@ -77,8 +83,15 @@ def file_rules(max_files, max_bytes):
             if tool != "convert"
         },
         "grouped": sorted(GROUPED),
+        "pdfGroups": PDF_GROUPS,
         "sections": {
-            key: {"formats": sorted(formats), "tools": {tool: TOOLS[tool] for tool in tools}}
+            key: {
+                "formats": sorted(formats),
+                "tools": {
+                    tool: "В JPG, PNG или TXT" if key == "pdf" and tool == "convert" else TOOLS[tool]
+                    for tool in tools
+                },
+            }
             for key, (_, _, formats, tools) in WORKSPACE_SECTIONS.items()
         },
         "maxFiles": max_files,

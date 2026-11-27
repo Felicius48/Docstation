@@ -5,11 +5,14 @@ from . import task_documents, views, workflow_views
 urlpatterns = [
     path("notifications/", workflow_views.notifications, name="notifications"),
     path("tasks/", workflow_views.task_list, name="task_list"),
-    path("tasks/sent/", workflow_views.task_list, {"sent": True}, name="task_sent"),
+    path("tasks/incoming/", workflow_views.task_list, {"folder": "incoming"}, name="task_incoming"),
+    path("tasks/sent/", workflow_views.task_list, {"folder": "sent"}, name="task_sent"),
     path("tasks/notifications/", workflow_views.task_notifications, name="task_notifications"),
     path("tasks/<int:pk>/compare/", task_documents.compare_versions, name="compare_versions"),
     path("file/result/<int:pk>/attach/", task_documents.attach_result, name="attach_result"),
     path("tasks/<int:pk>/delete/", workflow_views.workflow_delete, name="workflow_delete"),
+    path("tasks/<int:pk>/events/<int:event_pk>/screenshots/<int:file_pk>/",
+         workflow_views.comment_screenshot, name="comment_screenshot"),
     path("tasks/<int:pk>/comments/", workflow_views.workflow_comment, name="workflow_comment"),
     path(
         "tasks/<int:pk>/events/<int:event_pk>/preview/",

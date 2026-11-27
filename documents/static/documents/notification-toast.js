@@ -33,16 +33,21 @@
     showing = true;
     const notice = pending.shift();
     const card = document.createElement("div");
-    card.className = "notification-toast";
+    card.className = "toast notification-toast";
     const link = document.createElement("a");
     link.href = notice.url;
     link.textContent = notice.label + " · " + notice.title;
     const close = document.createElement("button");
     close.type = "button";
-    close.textContent = "×";
+    close.className = "btn-close";
     close.setAttribute("aria-label", "Закрыть уведомление");
-    card.append(link, close);
+    const body = document.createElement("div");
+    body.className = "toast-body d-flex align-items-start justify-content-between gap-3";
+    body.append(link, close);
+    card.append(body);
     container.append(card);
+    const toast = tabler.Toast.getOrCreateInstance(card, { animation: false, autohide: false });
+    toast.show();
     remember(notice.id);
 
     function dismiss() {
@@ -50,6 +55,8 @@
       clearTimeout(timer);
       card.classList.add("leaving");
       setTimeout(() => {
+        toast.hide();
+        toast.dispose();
         card.remove();
         showing = false;
         showNext();

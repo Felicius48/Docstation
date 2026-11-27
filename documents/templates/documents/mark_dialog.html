@@ -1,0 +1,17 @@
+{% load static %}
+<script type="module" src="{% static 'documents/screenshot-marks.js' %}"></script>
+<dialog class="mark-dialog" aria-labelledby="mark-title">
+  <h2 class="modal-title" id="mark-title">Отметки на скриншоте</h2>
+  <div class="mark-toolbar" role="group" aria-label="Инструменты разметки">
+    <button type="button" class="btn btn-outline-secondary" data-tool="rect" aria-pressed="true">Прямоугольник</button>
+    <button type="button" class="btn btn-outline-secondary" data-tool="arrow" aria-pressed="false">Стрелка</button>
+    <button type="button" class="btn btn-outline-secondary" data-undo disabled>Отменить отметку</button>
+  </div>
+  <p id="mark-help">Потяните от начала к концу или укажите две точки. С клавиатуры перемещайте курсор стрелками и выбирайте точки клавишей Enter.</p>
+  <canvas tabindex="0" aria-label="Скриншот для разметки" aria-describedby="mark-help"></canvas>
+  <p data-mark-status role="status"></p>
+  <div class="form-footer modal-footer">
+    <button type="button" class="btn btn-outline-secondary" data-discard>Отмена</button>
+    <button type="button" class="btn btn-primary" data-save>Применить</button>
+  </div>
+</dialog>

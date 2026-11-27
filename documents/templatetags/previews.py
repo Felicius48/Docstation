@@ -1,3 +1,5 @@
+import json
+
 from django import template
 
 from ..file_responses import preview_type
@@ -34,3 +36,8 @@ def document_icon_image(name):
     if icon in {"doc", "xls", "pdf", "jpg", "txt"}:
         return f"documents/file-icons/{icon}.png"
     return ""
+
+
+@register.filter
+def marks_json(marks):
+    return json.dumps(marks, separators=(",", ":"))

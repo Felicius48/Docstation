@@ -1,17 +1,19 @@
 {% load rich_text %}
 <div id="task-results">
-  <section class="panel"
-           aria-label="{% if sent %}Отправленные задачи{% else %}Входящие задачи{% endif %}">
-    {% for record in page %}
-      <a class="task-row" href="{% url 'workflow_detail' record.pk %}">
-        <div class="task-row-heading">
-          <strong>{{ record.title }}</strong>
-          <span class="workflow-state" data-state="{{ record.state }}">{{ record.get_state_display }}</span>
-        </div>
-        {% include "documents/task_delivery.html" %}
-        <p><b>Поручение</b> · {{ record.purpose|message_summary|truncatechars:160 }}</p>
-      </a>
-    {% empty %}<div class="empty"><p>Задач пока нет.</p></div>{% endfor %}
+  <section class="card"
+           aria-label="{% if folder == 'sent' %}Отправленные задачи{% elif folder == 'incoming' %}Входящие задачи{% else %}Все задачи{% endif %}">
+    <div class="list-group list-group-flush">
+      {% for record in page %}
+        <a class="list-group-item list-group-item-action" href="{% url 'workflow_detail' record.pk %}">
+          <div class="task-row-heading">
+            <strong>{{ record.title }}</strong>
+            <span class="workflow-state badge" data-state="{{ record.state }}">{% include "documents/status_icon.html" with state=record.state only %}{{ record.get_state_display }}</span>
+          </div>
+          {% include "documents/task_delivery.html" %}
+          <p>{% if record.purpose %}<b>Поручение</b> · {{ record.purpose|message_summary|truncatechars:160 }}{% else %}Скриншот во вложении{% endif %}</p>
+        </a>
+      {% empty %}<div class="empty"><p class="empty-subtitle">{% if request.GET.filter %}Задач по выбранному фильтру нет. <a href="{{ request.path }}">Сбросить фильтр</a>{% elif folder == 'sent' %}Здесь появятся задачи, которые вы отправите коллегам.{% elif folder == 'incoming' %}Здесь появятся поручения, которые коллеги отправят вам.{% else %}Здесь появятся ваши входящие и отправленные задачи.{% endif %}</p></div>{% endfor %}
+    </div>
   </section>
   {% include "documents/pagination.html" %}
 </div>

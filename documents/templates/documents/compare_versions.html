@@ -8,7 +8,7 @@
     <form method="get" class="task-toolbar">
       {% for chosen in selected %}
         <label>{% if forloop.first %}Слева{% else %}Справа{% endif %}
-          <select name="{% if forloop.first %}left{% else %}right{% endif %}">
+          <select class="form-select" name="{% if forloop.first %}left{% else %}right{% endif %}">
             {% for event in events %}
               <option value="{{ event.pk }}" {% if event.pk == chosen.pk %}selected{% endif %}>Версия {{ event.version.number }} · {{ event.version.name }}</option>
             {% endfor %}
@@ -20,19 +20,21 @@
           Использовать Windows-1251 для файлов в старой кодировке
         </label>
       {% endif %}
-      <button class="button primary">Сравнить</button>
+      <button class="btn btn-primary">Сравнить</button>
     </form>
     {% if mode == "pdf" %}
       <div class="task-toolbar" id="compare-controls">
-        <button type="button" class="button secondary" data-step="-1" disabled>Назад</button>
+        <button type="button" class="btn btn-outline-secondary" data-step="-1" disabled>Назад</button>
         <span role="status">Открываем PDF…</span>
-        <button type="button" class="button secondary" data-step="1" disabled>Далее</button>
+        <button type="button" class="btn btn-outline-secondary" data-step="1" disabled>Далее</button>
       </div>
       <div class="version-comparison">
         {% for event in selected %}
-          <section class="panel padded">
-            <h2>Версия {{ event.version.number }}</h2>
-            <div data-compare-pdf="{% url 'workflow_event_preview' record.pk event.pk %}"></div>
+          <section class="card">
+            <div class="card-body">
+              <h2 class="card-title">Версия {{ event.version.number }}</h2>
+              <div data-compare-pdf="{% url 'workflow_event_preview' record.pk event.pk %}"></div>
+            </div>
           </section>
         {% endfor %}
       </div>
@@ -50,7 +52,7 @@
     {% else %}<p>Сравнение поддерживает пары PDF и текстовые файлы TXT, MD, CSV, DOCX и ODT.</p>{% endif %}
     <div class="task-toolbar">
       {% for event in selected %}
-        <a class="button secondary" href="{% url 'workflow_event_file' record.pk event.pk %}">Скачать версию {{ event.version.number }}</a>
+        <a class="btn btn-outline-secondary" href="{% url 'workflow_event_file' record.pk event.pk %}">Скачать версию {{ event.version.number }}</a>
       {% endfor %}
     </div>
   {% else %}<p>Для сравнения нужны две версии документа.</p>{% endif %}

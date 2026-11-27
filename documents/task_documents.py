@@ -112,7 +112,8 @@ def read_text(version, *, allow_cp1251=False):
 def compare_versions(request, pk):
     record = get_object_or_404(card_records(request.user), pk=pk)
     unique = {}
-    for event in record.events.filter(version__document_id=record.version.document_id if record.version else None).select_related("version").order_by("pk"):
+    versions = record.events.filter(version__document_id=record.version.document_id) if record.version_id else record.events.none()
+    for event in versions.select_related("version").order_by("pk"):
         unique.setdefault(event.version_id, event)
     events = list(unique.values())
     by_id = {str(event.pk): event for event in events}

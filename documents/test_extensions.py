@@ -93,10 +93,13 @@ class DocumentExtensionsTests(TestCase):
                 })
                 self.assertEqual(response.status_code, 302)
                 record = WorkflowRecord.objects.get()
+                detail = reverse("workflow_detail", args=[record.pk])
+                self.assertNotContains(self.client.get(detail), "Сравнить версии")
                 response = self.client.post(reverse("workflow_comment", args=[record.pk]), {
                     "comment": "Уточнение", "file": SimpleUploadedFile("new.txt", b"added\nshared"),
                 })
                 self.assertEqual(response.status_code, 302)
+                self.assertContains(self.client.get(detail), "Сравнить версии")
                 comparison = self.client.get(reverse("compare_versions", args=[record.pk]))
                 self.assertContains(comparison, "<del>deleted</del>", html=True)
                 self.assertContains(comparison, "<ins>added</ins>", html=True)

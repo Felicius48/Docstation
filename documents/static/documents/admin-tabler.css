@@ -1,0 +1,57 @@
+@import url("vendor/tabler/tabler.min.css") layer(tabler);
+@import url("vendor/open-sans/fonts.css");
+
+:root,
+html[data-theme] {
+  --font-family-primary: "Open Sans", var(--tblr-body-font-family);
+  --primary: #0344dc;
+  --secondary: #0236ae;
+  --accent: #fff;
+  --primary-fg: #fff;
+  --header-color: #fff;
+  --header-link-color: #fff;
+  --button-fg: #fff;
+  --button-bg: var(--primary);
+  --button-hover-bg: var(--secondary);
+  --default-button-bg: var(--secondary);
+  --default-button-hover-bg: var(--primary);
+  --body-bg: light-dark(#fff, #101823);
+  --body-fg: light-dark(#273444, #edf3ff);
+  --body-medium-color: light-dark(#384551, #dbe5f4);
+  --body-quiet-color: light-dark(#526174, #bcc9dc);
+  --body-loud-color: light-dark(#182332, #fff);
+  --link-fg: light-dark(#0236ae, #a2bdff);
+  --link-hover-color: light-dark(#0344dc, #d4e1ff);
+  --link-selected-fg: var(--link-fg);
+  --accent-dark: var(--link-fg);
+  --breadcrumbs-bg: light-dark(#f2f2f2, #23385d);
+  --breadcrumbs-fg: var(--body-fg);
+  --breadcrumbs-link-fg: var(--link-fg);
+  --darkened-bg: light-dark(#f2f2f2, #1b2636);
+  --selected-bg: var(--darkened-bg);
+  --selected-row: var(--darkened-bg);
+  --border-color: light-dark(#cbd3df, #394b61);
+  --hairline-color: var(--border-color);
+}
+
+body {
+  font-family: var(--font-family-primary);
+  font-size: var(--tblr-body-font-size);
+}
+
+/* Django's forms, autocomplete and calendar also define their own radii. */
+body * {
+  border-radius: 0 !important;
+}
+
+#header {
+  box-shadow: 0 2px 8px #22303e18;
+}
+
+#content-main .module,
+#content-related,
+#changelist {
+  background: var(--body-bg);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--tblr-shadow-card);
+}

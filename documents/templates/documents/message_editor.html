@@ -4,134 +4,139 @@
   <div data-message-editor>
     {{ field }}
     <iframe data-editor-frame hidden title="{% if multiple %}Редактор сообщения{% else %}Редактор комментария{% endif %}"
-            data-css="{% static 'documents/template-editor.css' %}"></iframe>
+            data-css="{% static 'documents/template-editor.css' %}?v=editor-v3"></iframe>
     <template data-editor-markup>
-      <div class="wrap">
       <div class="panel mode-visual" id="panel">
-    <div class="panel-top">
-      <div class="modes" role="group" aria-label="Режим редактирования">
-        <button type="button" data-mode="visual" aria-pressed="true">Визуально</button>
-        <button type="button" data-mode="html" aria-pressed="false">HTML</button>
-        <button type="button" data-mode="split" aria-pressed="false">Рядом</button>
-      </div>
-    </div>
+        <div class="panel-top">
+          <div class="modes" role="group" aria-label="Режим редактирования">
+            <button type="button" data-mode="visual" aria-pressed="true">Визуально</button>
+            <button type="button" data-mode="html" aria-pressed="false">HTML</button>
+            <button type="button" data-mode="split" aria-pressed="false">Рядом</button>
+          </div>
+        </div>
 
-    <div class="toolbar" id="toolbar" role="toolbar" aria-label="Форматирование">
-      <div class="group">
-        <select id="blockSelect" aria-label="Стиль абзаца">
-          <option value="p">Абзац</option>
-          <option value="h1">Заголовок 1</option>
-          <option value="h2">Заголовок 2</option>
-          <option value="h3">Заголовок 3</option>
-          <option value="blockquote">Цитата</option>
-          <option value="pre">Код</option>
-        </select>
-      </div>
-      <div class="group">
-        <button type="button" class="tb" data-cmd="bold" data-state="bold" title="Жирный (Ctrl+B)" aria-label="Жирный"><b>Ж</b></button>
-        <button type="button" class="tb" data-cmd="italic" data-state="italic" title="Курсив (Ctrl+I)" aria-label="Курсив"><i>К</i></button>
-        <button type="button" class="tb" data-cmd="underline" data-state="underline" title="Подчёркнутый (Ctrl+U)" aria-label="Подчёркнутый"><u>Ч</u></button>
-        <button type="button" class="tb" data-cmd="strikeThrough" data-state="strikeThrough" title="Зачёркнутый" aria-label="Зачёркнутый"><s>З</s></button>
-      </div>
-      <div class="group">
-        <button type="button" class="tb" data-cmd="insertUnorderedList" data-state="insertUnorderedList" title="Маркированный список" aria-label="Маркированный список">• Список</button>
-        <button type="button" class="tb" data-cmd="insertOrderedList" data-state="insertOrderedList" title="Нумерованный список" aria-label="Нумерованный список">1. Список</button>
-      </div>
-      <div class="group">
-        <button type="button" class="tb" data-cmd="justifyLeft" data-state="justifyLeft" title="По левому краю" aria-label="По левому краю">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M2 6.5h8M2 9.5h12M2 12.5h8"/></svg>
+        <div class="toolbar" id="toolbar" role="toolbar" aria-label="Форматирование текста">
+          <div class="group" role="group" aria-label="Стиль абзаца">
+            <select id="blockSelect" aria-label="Стиль абзаца" title="Стиль абзаца">
+              <option value="p">Обычный текст</option>
+              <option value="h1">Заголовок 1</option>
+              <option value="h2">Заголовок 2</option>
+              <option value="h3">Заголовок 3</option>
+              <option value="pre">Код</option>
+            </select>
+          </div>
+
+          <div class="group" role="group" aria-label="Начертание">
+            <button type="button" class="tb" data-cmd="bold" data-state="bold" title="Жирный (Ctrl+B)" aria-label="Жирный"><b>Ж</b></button>
+            <button type="button" class="tb" data-cmd="italic" data-state="italic" title="Курсив (Ctrl+I)" aria-label="Курсив"><i>К</i></button>
+            <button type="button" class="tb" data-cmd="underline" data-state="underline" title="Подчёркнутый (Ctrl+U)" aria-label="Подчёркнутый"><u>Ч</u></button>
+            <button type="button" class="tb" data-cmd="strikeThrough" data-state="strikeThrough" title="Зачёркнутый" aria-label="Зачёркнутый"><s>З</s></button>
+          </div>
+
+          <div class="group" role="group" aria-label="Цвет">
+            <button type="button" class="tb" id="textColorBtn" title="Цвет текста" aria-label="Цвет текста"><span class="tc-ico">A<span class="tc-bar" id="textBar"></span></span>Цвет текста</button>
+            <button type="button" class="tb" id="markBtn" title="Выделить текст цветом" aria-label="Выделение цветом"><span class="hl-ico" id="markIco">ab</span>Выделение</button>
+          </div>
+
+          <div class="group" role="group" aria-label="Списки и выравнивание">
+            <button type="button" class="tb" data-cmd="insertUnorderedList" data-state="insertUnorderedList" title="Маркированный список" aria-label="Маркированный список">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 4h8M6 8h8M6 12h8"/><circle cx="2.4" cy="4" r="1" fill="currentColor" stroke="none"/><circle cx="2.4" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="2.4" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
+            </button>
+            <button type="button" class="tb" data-cmd="insertOrderedList" data-state="insertOrderedList" title="Нумерованный список" aria-label="Нумерованный список">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6.5 4h7.5M6.5 8h7.5M6.5 12h7.5"/><text x="0.6" y="5.6" font-size="5" fill="currentColor" stroke="none" font-family="sans-serif" font-weight="700">1</text><text x="0.6" y="9.6" font-size="5" fill="currentColor" stroke="none" font-family="sans-serif" font-weight="700">2</text><text x="0.6" y="13.6" font-size="5" fill="currentColor" stroke="none" font-family="sans-serif" font-weight="700">3</text></svg>
+            </button>
+            <button type="button" class="tb" data-cmd="justifyLeft" data-state="justifyLeft" title="По левому краю" aria-label="По левому краю">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M2 6.5h8M2 9.5h12M2 12.5h8"/></svg>
+            </button>
+            <button type="button" class="tb" data-cmd="justifyCenter" data-state="justifyCenter" title="По центру" aria-label="По центру">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M4 6.5h8M2 9.5h12M4 12.5h8"/></svg>
+            </button>
+            <button type="button" class="tb" data-cmd="justifyRight" data-state="justifyRight" title="По правому краю" aria-label="По правому краю">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M6 6.5h8M2 9.5h12M6 12.5h8"/></svg>
+            </button>
+          </div>
+
+          <div class="group" role="group" aria-label="Вставка">
+            <button type="button" class="tb" id="linkBtn" title="Ссылка на выделенный текст" aria-label="Ссылка">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.8 9.2l2.4-2.4M7.2 4.6l.9-.9a2.6 2.6 0 013.7 3.7l-.9.9M8.8 11.4l-.9.9a2.6 2.6 0 01-3.7-3.7l.9-.9"/></svg>Ссылка
+            </button>
+            <button type="button" class="tb" id="tableBtn" title="Вставить таблицу или изменить текущую" aria-label="Таблица">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.7" y="2.7" width="12.6" height="10.6" rx="1"/><path d="M1.7 6.5h12.6M1.7 9.9h12.6M6 2.7v10.6M10.2 2.7v10.6"/></svg>Таблица
+            </button>
+            <button type="button" class="tb" id="quoteBtn" aria-pressed="false" title="Цитата: оформить выделенный текст или абзац. Нажмите ещё раз, чтобы снять" aria-label="Цитата"><span class="glyph" aria-hidden="true">“</span>Цитата</button>
+            <button type="button" class="tb" id="authorBtn" title="Подпись автора под цитатой" aria-label="Автор цитаты" disabled>Автор</button>
+            <button type="button" class="tb" data-cmd="insertHorizontalRule" title="Горизонтальная линия" aria-label="Горизонтальная линия">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 8h12"/></svg>
+            </button>
+          </div>
+
+          <div class="group" role="group" aria-label="История и очистка">
+            <button type="button" class="tb" id="undoBtn" title="Отменить (Ctrl+Z)" aria-label="Отменить">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5h6.2a3.3 3.3 0 010 6.6H6"/><path d="M5.6 3.8L3 6.5l2.6 2.7"/></svg>
+            </button>
+            <button type="button" class="tb" id="redoBtn" title="Повторить (Ctrl+Shift+Z)" aria-label="Повторить">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13 6.5H6.8a3.3 3.3 0 000 6.6H10"/><path d="M10.4 3.8L13 6.5 10.4 9.2"/></svg>
+            </button>
+            <button type="button" class="tb" id="clearFmt" title="Убрать форматирование выделенного текста" aria-label="Убрать форматирование">Tx</button>
+          </div>
+        </div>
+
+        <div class="dock" id="dockLink" hidden>
+          <span class="dock-title">Ссылка</span>
+          <input type="text" class="grow" id="linkUrl" placeholder="https://example.com" aria-label="Адрес ссылки" autocomplete="off">
+          <button type="button" class="btn main" id="linkApply">Применить</button>
+          <button type="button" class="btn" id="linkRemove">Убрать ссылку</button>
+          <button type="button" class="btn" data-close>Закрыть</button>
+        </div>
+
+        <div class="dock" id="dockColor" hidden>
+          <span class="dock-title" id="colorLabel"></span>
+          <div class="swatches" id="swatches"></div>
+          <label>Свой цвет <input type="color" id="colorCustom" value="#2b57d6"></label>
+          <button type="button" class="btn" data-close>Закрыть</button>
+        </div>
+
+        <div class="dock" id="dockTable" hidden>
+          <span class="dock-title">Новая таблица</span>
+          <label>Строки <input type="number" id="tblRows" min="1" max="30" value="3"></label>
+          <label>Столбцы <input type="number" id="tblCols" min="1" max="12" value="3"></label>
+          <label><input type="checkbox" id="tblHead" checked> Строка заголовка</label>
+          <button type="button" class="btn main" id="tblInsert">Вставить</button>
+          <span class="bar-sep" aria-hidden="true"></span>
+          <span class="dock-title">Текущая таблица</span>
+          <button type="button" class="btn" data-tbl="addRow" disabled>+ Строка</button>
+          <button type="button" class="btn" data-tbl="addCol" disabled>+ Столбец</button>
+          <button type="button" class="btn" data-tbl="delRow" disabled>− Строка</button>
+          <button type="button" class="btn" data-tbl="delCol" disabled>− Столбец</button>
+          <button type="button" class="btn" data-tbl="delTable" disabled>Удалить таблицу</button>
+          <button type="button" class="btn" data-close>Закрыть</button>
+        </div>
+
+        <div class="dock" id="dockQuote" hidden>
+          <span class="dock-title">Автор цитаты</span>
+          <input type="text" class="grow" id="quoteSrc" placeholder="Например: Лев Толстой. Оставьте пустым, чтобы убрать подпись" aria-label="Автор или источник" autocomplete="off">
+          <button type="button" class="btn main" id="quoteApply">Применить</button>
+          <button type="button" class="btn" data-close>Закрыть</button>
+        </div>
+
+        <div class="panes">
+          <div class="pane" id="paneVisual">
+            <div class="rich" id="editor" data-visual-editor contenteditable="true" role="textbox" aria-multiline="true" aria-label="Текст" data-placeholder="Начните писать здесь…" spellcheck="true">{{ field.value|rich_message }}</div>
+          </div>
+          <div class="pane" id="paneHtml" hidden>
+            <textarea class="source" id="source" data-html-source spellcheck="false" aria-label="HTML-код" autocapitalize="off" autocomplete="off"></textarea>
+          </div>
+        </div>
+
+        <button type="button" class="grip" id="grip" title="Потяните, чтобы изменить размер. Двойной щелчок возвращает размер по умолчанию" aria-label="Изменить размер редактора (стрелки на клавиатуре)">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5L5 12M12 9L9 12"/></svg>
         </button>
-        <button type="button" class="tb" data-cmd="justifyCenter" data-state="justifyCenter" title="По центру" aria-label="По центру">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M4 6.5h8M2 9.5h12M4 12.5h8"/></svg>
-        </button>
-        <button type="button" class="tb" data-cmd="justifyRight" data-state="justifyRight" title="По правому краю" aria-label="По правому краю">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M6 6.5h8M2 9.5h12M6 12.5h8"/></svg>
-        </button>
       </div>
-      <div class="group">
-        <button type="button" class="tb" id="textColorBtn" title="Цвет текста" aria-label="Цвет текста"><span class="tc-ico">A<span class="tc-bar" id="textBar"></span></span></button>
-        <button type="button" class="tb" id="markBtn" title="Выделение цветом" aria-label="Выделение цветом"><span class="hl-ico" id="markIco">ab</span></button>
-      </div>
-      <div class="group">
-        <button type="button" class="tb" id="tableBtn" title="Таблица" aria-label="Таблица">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.7" y="2.7" width="12.6" height="10.6" rx="1"/><path d="M1.7 6.5h12.6M1.7 9.9h12.6M6 2.7v10.6M10.2 2.7v10.6"/></svg>
-          Таблица
-        </button>
-        <button type="button" class="tb" id="quoteBtn" title="Оформить цитату" aria-label="Оформить цитату">« »</button>
-        <button type="button" class="tb" id="linkBtn" title="Вставить ссылку" aria-label="Вставить ссылку">Ссылка</button>
-        <button type="button" class="tb" data-cmd="insertHorizontalRule" title="Разделитель" aria-label="Разделитель">—</button>
-        <button type="button" class="tb" id="clearFmt" title="Убрать форматирование" aria-label="Убрать форматирование">Tx</button>
-      </div>
-      <div class="group">
-        <button type="button" class="tb" data-cmd="undo" title="Отменить (Ctrl+Z)" aria-label="Отменить">↶</button>
-        <button type="button" class="tb" data-cmd="redo" title="Повторить (Ctrl+Y)" aria-label="Повторить">↷</button>
-      </div>
-    </div>
-
-    <div class="linkbar" id="linkbar" hidden>
-      <input type="text" id="linkUrl" placeholder="https://example.com" aria-label="Адрес ссылки" autocomplete="off">
-      <button type="button" class="btn" id="linkApply">Применить</button>
-      <button type="button" class="btn" id="linkRemove">Убрать ссылку</button>
-      <button type="button" class="btn" id="linkCancel">Отмена</button>
-    </div>
-
-    <div class="colorbar" id="colorbar" hidden>
-      <span class="cb-label" id="colorLabel"></span>
-      <div class="swatches" id="swatches"></div>
-      <label class="cb-custom">Свой цвет <input type="color" id="colorCustom" value="#2b57d6"></label>
-      <button type="button" class="btn" id="colorClose">Закрыть</button>
-    </div>
-
-    <div class="colorbar" id="tablebar" hidden>
-      <span class="cb-label">Таблица</span>
-      <label class="num">Строки <input type="number" id="tblRows" min="1" max="30" value="3"></label>
-      <label class="num">Столбцы <input type="number" id="tblCols" min="1" max="12" value="3"></label>
-      <label class="chk"><input type="checkbox" id="tblHead" checked> Строка заголовка</label>
-      <button type="button" class="btn" id="tblInsert">Вставить таблицу</button>
-      <span class="bar-sep" aria-hidden="true"></span>
-      <button type="button" class="btn" data-tbl="addRow" disabled>+ Строка</button>
-      <button type="button" class="btn" data-tbl="addCol" disabled>+ Столбец</button>
-      <button type="button" class="btn" data-tbl="delRow" disabled>− Строка</button>
-      <button type="button" class="btn" data-tbl="delCol" disabled>− Столбец</button>
-      <button type="button" class="btn" data-tbl="delTable" disabled>Удалить таблицу</button>
-      <button type="button" class="btn" id="tblClose">Закрыть</button>
-    </div>
-
-    <div class="colorbar" id="quotebar" hidden>
-      <span class="cb-label">Цитата</span>
-      <input type="text" class="grow" id="quoteSrc" placeholder="Автор или источник (необязательно)" aria-label="Автор или источник" autocomplete="off">
-      <button type="button" class="btn" id="quoteInsert">Оформить цитату</button>
-      <button type="button" class="btn" id="quoteUndo">Снять оформление</button>
-      <button type="button" class="btn" id="quoteClose">Закрыть</button>
-    </div>
-
-    <div class="panes">
-      <div class="pane" id="paneVisual">
-        <div class="rich" id="editor" data-visual-editor contenteditable="true" role="textbox" aria-multiline="true" aria-label="Текст" data-placeholder="Начните писать здесь…" spellcheck="true">{{ field.value|rich_message }}</div>
-      </div>
-      <div class="pane" id="paneHtml" hidden>
-        <textarea class="source" id="source" data-html-source spellcheck="false" aria-label="HTML-код" autocapitalize="off" autocomplete="off"></textarea>
-      </div>
-    </div>
-      </div>
-    </div>
     </template>
-    <div class="task-composer-tools" id="attachment-controls"
-         {% if not multiple and not can_replace_file and not can_return_task %}hidden{% endif %}>
-      <ul data-attachment-list aria-label="Вложения" hidden></ul>
-      <small data-file-status role="status">
-        {% if multiple %}До 5 файлов, всего до 50 МБ.
-        {% elif can_return_task %}Новая версия доступна при возврате на переделку.
-        {% else %}Прикреплённый файл станет текущей версией.{% endif %}
-      </small>
-      <input data-attachment-input type="file" name="file"
-             {% if multiple %}multiple{% elif not can_replace_file and not can_return_task %}disabled{% endif %}>
-      <button type="button" class="button secondary" data-attach hidden
-              {% if not multiple and not can_replace_file and not can_return_task %}disabled{% endif %}
-              aria-label="{% if multiple %}Прикрепить файлы{% else %}Прикрепить новую версию{% endif %}" title="Прикрепить файл">
-        <svg aria-hidden="true"><use href="#paperclip" /></svg>
-      </button>
-    </div>
+    {% if not multiple and not external_controls %}
+      {% include "documents/message_attachments.html" with screenshots_only=True %}
+      {% include "documents/message_attachments.html" %}
+    {% endif %}
   </div>
   <p data-editor-error role="alert"></p>
   {{ field.errors }}

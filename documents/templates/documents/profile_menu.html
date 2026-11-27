@@ -1,18 +1,18 @@
 {% load people %}
 {% with user=request.user profile=request.user.profile name=request.user|full_name|default:request.user.username %}
-  <details class="profile-menu">
-    <summary class="profile-toggle" aria-label="Профиль пользователя: {{ name }}">
+  <li class="nav-item dropup">
+    <button type="button" class="nav-link" data-bs-toggle="dropdown" data-bs-auto-close="outside" data-bs-display="static" aria-controls="profile-dropdown" aria-expanded="false" aria-label="Профиль пользователя: {{ name }}">
       {% if profile.avatar %}
-        <img class="profile-avatar"
+        <img class="avatar rounded-circle profile-avatar"
              src="{% url 'profile_avatar' %}"
              alt=""
              width="40"
              height="40">
       {% else %}
-        <span class="profile-avatar profile-initial"
-              aria-hidden="true">{{ request.user.username|first|upper }}</span>
+        <span class="avatar rounded-circle profile-avatar profile-initial"
+              aria-hidden="true">{{ user|initials }}</span>
       {% endif %}
-      <span class="profile-name" title="{{ name }}">
+      <span class="nav-link-title"><span class="profile-name" title="{{ name }}">
         {% if user.last_name %}
           <span>{{ user.last_name }}</span>
         {% endif %}
@@ -21,9 +21,9 @@
         {% elif not user.last_name %}
           <span>{{ user.username }}</span>
         {% endif %}
-      </span>
-    </summary>
-    <div class="profile-panel panel">
+      </span></span>
+    </button>
+    <div class="profile-panel dropdown-menu" id="profile-dropdown">
       <strong>{{ name }}</strong>
       <p class="profile-position">{{ profile.position|default:"Должность не указана" }}</p>
       <dl class="profile-contacts">
@@ -37,16 +37,16 @@
         {% csrf_token %}
         <input type="hidden" name="next" value="{{ request.get_full_path }}">
         <label>
-          Фото профиля<input type="file"
+          Фото профиля<input class="form-control" type="file"
                              name="file"
                              accept="image/jpeg,image/png,image/webp"
                              required>
         </label>
-        <button class="button secondary">Сохранить фото</button>
+        <button class="btn btn-outline-secondary">Сохранить фото</button>
       </form>
       <form class="profile-form" method="post" action="{% url 'logout' %}">
         {% csrf_token %}
-        <button class="button secondary">
+        <button class="btn btn-outline-secondary">
           Выйти
           <svg aria-hidden="true">
             <use href="#arrow" />
@@ -54,5 +54,5 @@
         </button>
       </form>
     </div>
-  </details>
+  </li>
 {% endwith %}

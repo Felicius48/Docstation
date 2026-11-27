@@ -170,6 +170,7 @@ def history(request):
 def batch_detail(request, pk):
     batch = get_object_or_404(visible_to(Batch.objects.all(), request.user), pk=pk)
     jobs = list(batch.jobs.order_by("pk").prefetch_related("inputs__version", "results"))
+    results = [result for job in jobs if job.state == Job.State.DONE for result in job.results.all()]
     template = (
         "documents/batch_results.html" if request.GET.get("fragment") == "jobs" else "documents/batch.html"
     )
@@ -181,7 +182,7 @@ def batch_detail(request, pk):
             "jobs": [(job, TOOLS.get(job.operation, "Старая операция"), can_retry(job)) for job in jobs],
             "active": any(job.state in (Job.State.QUEUED, Job.State.RUNNING) for job in jobs),
             "queue": queue_status(batch.owner),
-            "ready": any(job.state == Job.State.DONE for job in jobs),
+            "results": results,
         },
     )
 

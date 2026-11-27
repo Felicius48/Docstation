@@ -44,8 +44,11 @@ document.addEventListener("click", async (event) => {
   const view = { page: 1, zoom: 1, revision: 0 };
   session = view;
   control("title").textContent = name;
-  control("meta").textContent = (version ? "Исходник · версия " + version : "Результат") + " · " + size;
+  const description = button.hasAttribute("data-comment-image") ? "Скриншот комментария"
+    : version ? "Исходник · версия " + version : "Результат";
+  control("meta").textContent = description + " · " + size;
   control("download").href = download;
+  control("download").textContent = "Скачать";
   status.textContent = "Загрузка…";
   control("prev").hidden = control("next").hidden = type !== "application/pdf";
   update(view);
@@ -75,7 +78,15 @@ document.addEventListener("click", async (event) => {
       status.textContent = "";
     } else {
       view.image.style.width = Math.min(view.image.naturalWidth, surface.clientWidth) + "px";
-      surface.replaceChildren(view.image);
+      if (button.dataset.marks) {
+        const marked = document.createElement("marked-image");
+        marked.dataset.marks = button.dataset.marks;
+        marked.append(view.image);
+        surface.replaceChildren(marked);
+        control("download").textContent = "Скачать оригинал";
+      } else {
+        surface.replaceChildren(view.image);
+      }
       status.textContent = "";
     }
   } catch (error) {

@@ -434,13 +434,18 @@ class ArchiveWorkflowTests(TransactionTestCase):
                 for result, widths in zip(results, expected_widths, strict=True):
                     data = self.download(reverse("download_result", args=[result.pk]))
                     self.assertEqual([page.mediabox.width for page in PdfReader(BytesIO(data)).pages], widths)
+                fragment = self.client.get(reverse("batch_detail", args=[job.batch_id]), {"fragment": "jobs"})
                 if mode == "separate":
+                    self.assertContains(fragment, "Скачать всё в ZIP")
                     self.assertEqual(
                         [item.name for item in results], ["source-page-0001.pdf", "source-page-0003.pdf"]
                     )
                     bundle = self.download(reverse("download_batch", args=[job.batch_id]))
                     with ZipFile(BytesIO(bundle)) as archive:
                         self.assertEqual(archive.namelist(), [item.name for item in results])
+                else:
+                    self.assertContains(fragment, "Скачать PDF")
+                    self.assertNotContains(fragment, "Скачать всё в ZIP")
 
     def test_submission_rejects_invalid_ids_and_preserves_grouped_order(self):
         batch = self.new_batch()

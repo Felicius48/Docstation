@@ -1,0 +1,12 @@
+{% load people rich_text previews %}
+<a class="comment-quote" href="#comment-{{ source.pk }}">
+  {% with image=source.screenshots.all.0 %}
+    {% if image %}
+      {% if image.marks %}<marked-image data-marks="{{ image.marks|marks_json }}">{% endif %}
+      <img src="{% url 'comment_screenshot' record.pk source.pk image.pk %}" alt="Скриншот" loading="lazy">{% if image.marks %}</marked-image>{% endif %}
+    {% endif %}
+  {% endwith %}
+  <span><strong>{% if source.actor %}{{ source.actor|full_name|default:"ФИО не указано" }}{% else %}Удалённый пользователь{% endif %}</strong>
+    <span>{% if source.comment %}{{ source.comment|message_summary|truncatechars:120 }}{% elif source.version %}{{ source.version.name }}{% else %}Скриншот{% endif %}</span>
+  </span>
+</a>

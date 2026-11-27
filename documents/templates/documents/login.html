@@ -2,66 +2,68 @@
 {% block title %}Вход · Docstation{% endblock %}
 {% block guest %}
   <main class="login-page">
-    <section class="login-card">
-      <div class="brand">
-        <span class="brand-mark">
-          <svg>
-            <use href="#logo" />
-          </svg></span>DocStation
-        </div>
-        <h1>Вход в DocStation</h1>
-        <p>Войдите, чтобы работать с документами.</p>
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="next" value="{{ next }}">
-          {% if form.errors %}<p class="notice error"
-                                 role="alert">Проверь имя пользователя и пароль.</p>{% endif %}
-          <label>Имя пользователя<input name="username"
-                                        value="{{ form.username.value|default_if_none:'' }}"
-                                        autocomplete="username"
-                                        required
-                                        {% if not registration.is_bound %}autofocus{% endif %}></label>
-          <label>
-            Пароль<input name="password"
-                         type="password"
-                         autocomplete="current-password"
-                         required>
-          </label>
-          <button class="button primary">
-            Войти
-            <svg>
-              <use href="#arrow" />
-            </svg>
-          </button>
-        </form>
-        {% if invitation_invalid %}<p class="notice error">Приглашение использовано или срок его действия истёк.</p>{% endif %}
-        {% if registration_allowed %}
-          <details class="registration"
-                   {% if registration.is_bound or invited %}open{% endif %}>
-            <summary>Создать аккаунт</summary>
-            <form method="post" aria-label="Регистрация">
+    <section class="login-card card">
+        <div class="card-body">
+          <div class="brand">
+            <span class="brand-mark">
+              <svg>
+                <use href="#logo" />
+              </svg></span>DocStation
+            </div>
+            <h1>Вход в DocStation</h1>
+            <p>Войдите, чтобы работать с документами.</p>
+            <form method="post">
               {% csrf_token %}
-              <input type="hidden" name="action" value="register">
               <input type="hidden" name="next" value="{{ next }}">
-              {{ registration.non_field_errors }}
-              {% for field in registration %}
-                <div class="registration-field">
-                  {{ field.label_tag }}
-                  {{ field }}
-                  {% if field.help_text %}<div class="registration-help"
-                                               id="{{ field.auto_id }}_helptext">{{ field.help_text|safe }}</div>{% endif %}
-                  {{ field.errors }}
-                </div>
-              {% endfor %}
-              <button class="button primary">
-                Зарегистрироваться
-                <svg aria-hidden="true">
+              {% if form.errors %}<p class="notice error alert alert-danger"
+                                     role="alert">Проверь имя пользователя и пароль.</p>{% endif %}
+              <label>Имя пользователя<input name="username"
+                                            value="{{ form.username.value|default_if_none:'' }}"
+                                            autocomplete="username"
+                                            required
+                                            {% if not registration.is_bound %}autofocus{% endif %}></label>
+              <label>
+                Пароль<input class="form-control" name="password"
+                             type="password"
+                             autocomplete="current-password"
+                             required>
+              </label>
+              <button class="btn btn-primary">
+                Войти
+                <svg>
                   <use href="#arrow" />
                 </svg>
               </button>
             </form>
-          </details>
-        {% endif %}
+            {% if invitation_invalid %}<p class="notice error alert alert-danger">Приглашение использовано или срок его действия истёк.</p>{% endif %}
+            {% if registration_allowed %}
+              <details class="registration"
+                       {% if registration.is_bound or invited %}open{% endif %}>
+                <summary>Создать аккаунт</summary>
+                <form method="post" aria-label="Регистрация">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="register">
+                  <input type="hidden" name="next" value="{{ next }}">
+                  {{ registration.non_field_errors }}
+                  {% for field in registration %}
+                    <div class="registration-field">
+                      {{ field.label_tag }}
+                      {{ field }}
+                      {% if field.help_text %}<div class="registration-help"
+                                                   id="{{ field.auto_id }}_helptext">{{ field.help_text|safe }}</div>{% endif %}
+                      {{ field.errors }}
+                    </div>
+                  {% endfor %}
+                  <button class="btn btn-primary">
+                    Зарегистрироваться
+                    <svg aria-hidden="true">
+                      <use href="#arrow" />
+                    </svg>
+                  </button>
+                </form>
+              </details>
+            {% endif %}
+        </div>
       </section>
     </main>
 {% endblock %}

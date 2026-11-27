@@ -1,16 +1,16 @@
 {% load people %}
-<dl class="task-delivery">
-  <div>
-    <dt>Отправитель</dt>
-    <dd>{{ record.sender|full_name|default:"ФИО не указано" }}</dd>
+<dl class="task-delivery datagrid">
+  <div class="datagrid-item">
+    <dt class="datagrid-title">Отправитель</dt>
+    <dd class="datagrid-content">{{ record.sender|full_name|default:"ФИО не указано" }}</dd>
   </div>
-  <div>
-    <dt>Получатель</dt>
-    <dd>{% for person in record.recipients.all %}{{ person|full_name|default:"ФИО не указано" }}{% if not forloop.last %}, {% endif %}{% empty %}Получатель удалён{% endfor %}</dd>
+  <div class="datagrid-item">
+    <dt class="datagrid-title">Получатель</dt>
+    <dd class="datagrid-content">{% for person in record.recipients.all %}{{ person|full_name|default:"ФИО не указано" }}{% if not forloop.last %}, {% endif %}{% empty %}Получатель удалён{% endfor %}</dd>
   </div>
-  <div>
-    <dt>Дата отправки</dt>
-    <dd><time datetime="{{ record.created_at|date:'c' }}">{{ record.created_at|date:"d.m.Y · H:i" }}</time></dd>
+  <div class="datagrid-item">
+    <dt class="datagrid-title">Дата отправки</dt>
+    <dd class="datagrid-content"><time datetime="{{ record.created_at|date:'c' }}">{{ record.created_at|date:"d.m.Y · H:i" }}</time></dd>
   </div>
-  {% if record.due_date %}<div><dt>Срок</dt><dd>{{ record.due_date|date:"d.m.Y" }}</dd></div>{% endif %}
+  {% if record.due_date %}<div class="datagrid-item"><dt class="datagrid-title">Срок</dt><dd class="datagrid-content">{{ record.due_date|date:"d.m.Y" }}</dd></div>{% endif %}
 </dl>

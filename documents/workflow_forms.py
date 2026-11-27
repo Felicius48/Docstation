@@ -24,29 +24,29 @@ def recipient_label(user):
 
 
 class TaskForm(forms.Form):
-    title = forms.CharField(label="Название задачи", max_length=255, required=False)
-    recipient = forms.ModelChoiceField(queryset=get_user_model().objects.none(), label="Кому отправить")
+    title = forms.CharField(label="Название задачи (можно пропустить при вложении файла)", max_length=255, required=False)
+    recipient = forms.ModelChoiceField(queryset=get_user_model().objects.none(), label="Кому отправить", empty_label="Выберите получателя")
     due_date = forms.DateField(
-        required=False, label="Срок", input_formats=["%Y-%m-%d"],
-        widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date"}),
+        required=False, label="Срок (необязательно)", input_formats=["%Y-%m-%d"],
+        widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-control"}),
     )
     purpose = forms.CharField(
-        label="Что нужно сделать", max_length=WORKFLOW_TEXT_LIMIT, widget=forms.Textarea(attrs={"rows": 4, "placeholder": "Опиши, что нужно сделать"})
+        label="Что нужно сделать", required=False, max_length=WORKFLOW_TEXT_LIMIT, widget=forms.Textarea(attrs={"rows": 4, "placeholder": "Опиши, что нужно сделать"})
     )
 
     def clean_purpose(self):
-        value = normalize(self.cleaned_data["purpose"])
-        if not value:
-            raise forms.ValidationError("Напиши сообщение.")
-        return value
+        return normalize(self.cleaned_data["purpose"])
 
     def __init__(self, owner, data=None):
         super().__init__(data)
+        self.fields["title"].widget.attrs["class"] = "form-control"
+        self.fields["recipient"].widget.attrs["class"] = "form-select"
         self.fields["recipient"].queryset = active_recipients(owner)
         self.fields["recipient"].label_from_instance = recipient_label
 
 
 class CommentForm(forms.Form):
+    reply_to = forms.IntegerField(required=False, min_value=1, max_value=2**63 - 1, widget=forms.HiddenInput)
     comment = forms.CharField(
         label="Комментарий",
         max_length=WORKFLOW_TEXT_LIMIT,

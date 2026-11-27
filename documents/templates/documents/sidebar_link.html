@@ -1,0 +1,6 @@
+<li class="nav-item{% if route in routes.split %} active{% endif %}">
+  <a class="nav-link" href="{% url destination %}" {% if route in routes.split %}aria-current="page"{% endif %} title="{{ label }}">
+    <span class="nav-link-icon"><svg aria-hidden="true"><use href="#{{ icon }}" /></svg></span>
+    <span class="nav-link-title">{{ label }}</span>
+  </a>
+</li>

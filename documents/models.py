@@ -28,6 +28,7 @@ class Document(models.Model):
 
 
 class Version(models.Model):
+    marks = models.JSONField(default=list, blank=True)
     document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="versions")
     number = models.PositiveIntegerField()
     name = models.CharField(max_length=255)
@@ -145,9 +146,11 @@ class WorkflowRecord(models.Model):
 
 
 class WorkflowEvent(models.Model):
+    reply_to = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     record = models.ForeignKey(WorkflowRecord, on_delete=models.CASCADE, related_name="events")
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     version = models.ForeignKey(Version, on_delete=models.CASCADE, null=True, blank=True)
+    screenshots = models.ManyToManyField(Version, blank=True, related_name="screenshot_events")
     is_comment = models.BooleanField(default=False)
     previous_state = models.CharField(max_length=12, choices=WorkflowRecord.State.choices, blank=True)
     state = models.CharField(max_length=12, choices=WorkflowRecord.State.choices)

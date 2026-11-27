@@ -1,0 +1,17 @@
+<div class="task-composer-tools" data-upload-group {% if not screenshots_only %}id="attachment-controls" {% if not multiple and not can_replace_file and can_return_task %}data-return-only{% endif %}{% endif %}
+     {% if not screenshots_only and not multiple and not can_replace_file and not can_return_task %}hidden{% endif %}>
+  <ul data-attachment-list aria-label="Вложения" hidden></ul>
+  <small data-file-status role="status">
+    {% if multiple or screenshots_only %}Можно вставить скриншот из буфера. До 5 вложений, всего до 50 МБ.
+    {% elif can_return_task %}Новая версия доступна при возврате на переделку.
+    {% else %}Прикреплённый файл станет текущей версией.{% endif %}
+  </small>
+  <input data-attachment-input type="file" name="{% if screenshots_only %}screenshot{% else %}file{% endif %}"
+         {% if screenshots_only %}accept="image/png,image/jpeg,image/webp"{% endif %}
+         {% if multiple or screenshots_only %}multiple{% elif not can_replace_file and not can_return_task %}disabled{% endif %}>
+  <button type="button" class="btn btn-outline-secondary" data-attach hidden
+          {% if not screenshots_only and not multiple and not can_replace_file and not can_return_task %}disabled{% endif %}
+          aria-label="{% if screenshots_only %}Прикрепить скриншоты{% elif multiple %}Прикрепить файлы{% else %}Прикрепить новую версию{% endif %}" >
+    <svg aria-hidden="true"><use href="#paperclip" /></svg>{% if screenshots_only %}Скриншот{% elif not multiple %}Новая версия{% endif %}
+  </button>
+</div>

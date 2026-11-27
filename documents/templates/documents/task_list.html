@@ -3,50 +3,59 @@
 {% block content %}
   <div class="intro">
     <h1>Задачи</h1>
-    <nav class="task-toolbar" aria-label="Действия и папки задач">
-      <button class="button primary"
-              type="button"
-              id="add-task"
-              aria-haspopup="dialog"
-              aria-controls="task-dialog">Добавить</button>
-      <a class="button {% if sent %}secondary{% else %}primary{% endif %}"
-         href="{% url 'task_list' %}"
-         {% if not sent %}aria-current="page"{% endif %}>Входящие</a>
-      <a class="button {% if sent %}primary{% else %}secondary{% endif %}"
-         href="{% url 'task_sent' %}"
-         {% if sent %}aria-current="page"{% endif %}>Отправленные</a>
-    </nav>
-    <form method="get" class="task-toolbar">
-      <label for="task-filter">Показать</label>
-      <select id="task-filter" name="filter">
-        <option value="">Все задачи</option>
-        <option value="overdue" {% if request.GET.filter == "overdue" %}selected{% endif %}>Просрочено</option>
-        <option value="today" {% if request.GET.filter == "today" %}selected{% endif %}>На сегодня</option>
-        <option value="waiting" {% if request.GET.filter == "waiting" %}selected{% endif %}>Жду ответа</option>
-      </select>
-      <button class="button secondary">Применить</button>
-    </form>
+    <div class="task-list-toolbar">
+      <div class="task-list-actions">
+        <button class="btn btn-primary"
+                type="button"
+                id="add-task"
+                aria-haspopup="dialog"
+                aria-controls="task-dialog">Создать задачу</button>
+        <nav class="nav nav-tabs task-folders" aria-label="Папки задач">
+          <a class="nav-link{% if folder == 'all' %} active{% endif %}"
+             href="{% url 'task_list' %}"
+             {% if folder == 'all' %}aria-current="page"{% endif %}>Все</a>
+          <a class="nav-link{% if folder == 'incoming' %} active{% endif %}"
+             href="{% url 'task_incoming' %}"
+             {% if folder == 'incoming' %}aria-current="page"{% endif %}>Входящие</a>
+          <a class="nav-link{% if folder == 'sent' %} active{% endif %}"
+             href="{% url 'task_sent' %}"
+             {% if folder == 'sent' %}aria-current="page"{% endif %}>Отправленные</a>
+        </nav>
+      </div>
+      <form method="get" class="task-list-filter">
+        <label class="form-label mb-0" for="task-filter">Показать</label>
+        <select class="form-select" id="task-filter" name="filter" {% if "filter" in request.GET %}autofocus{% endif %}>
+          <option value="">Все задачи</option>
+          <option value="overdue" {% if request.GET.filter == "overdue" %}selected{% endif %}>Просрочено</option>
+          <option value="today" {% if request.GET.filter == "today" %}selected{% endif %}>На сегодня</option>
+          <option value="waiting" {% if request.GET.filter == "waiting" %}selected{% endif %}>Жду ответа</option>
+        </select>
+        <noscript><button class="btn btn-outline-secondary">Применить</button></noscript>
+      </form>
+    </div>
   </div>
   {% include "documents/task_rows.html" %}
-<dialog class="task-dialog"
-        id="task-dialog"
-        aria-labelledby="task-dialog-title"
-        {% if form.errors %}data-invalid{% endif %}>
-  <h2 id="task-dialog-title">Новая задача</h2>
-  <form class="approval-form workflow-create-form"
-        method="post"
-        enctype="multipart/form-data">
-    {% csrf_token %}
-    {{ form.non_field_errors }}
-    {{ form.title.as_field_group }}
-    {{ form.recipient.as_field_group }}
-    {{ form.due_date.as_field_group }}
-    {% include "documents/message_editor.html" with field=form.purpose multiple=True %}
-    {% if form.errors and request.FILES %}<p>Прикрепи файлы заново перед отправкой.</p>{% endif %}
-    <div class="form-footer">
-      <button class="button secondary" type="button" data-close-task>Отмена</button>
-      <button class="button primary" type="submit">Отправить задачу</button>
-    </div>
-  </form>
-</dialog>
+  <dialog class="task-dialog" id="task-dialog" aria-labelledby="task-dialog-title"
+          {% if form.errors %}data-invalid{% endif %}>
+    <form class="approval-form workflow-create-form modal-content" method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <header class="modal-header"><h2 class="modal-title p-0" id="task-dialog-title">Новая задача</h2></header>
+      <div class="task-fields modal-body">
+        {{ form.non_field_errors }}
+        {{ form.title.as_field_group }}
+        {{ form.recipient.as_field_group }}
+        {{ form.due_date.as_field_group }}
+        {% include "documents/message_editor.html" with field=form.purpose multiple=True %}
+        {% if form.errors and request.FILES %}<p>Прикрепи файлы заново перед отправкой.</p>{% endif %}
+      </div>
+      <footer class="task-dialog-footer">
+        {% include "documents/message_attachments.html" with multiple=True %}
+        <div class="form-footer modal-footer">
+          <button class="btn btn-outline-secondary" type="button" data-close-task>Отмена</button>
+          <button class="btn btn-primary" type="submit">Отправить задачу</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+  {% include "documents/mark_dialog.html" %}
 {% endblock %}

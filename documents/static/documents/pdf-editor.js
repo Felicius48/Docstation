@@ -25,7 +25,7 @@ export function openPdfEditor(files, existing) {
       const row = document.createElement("li");
       const label = document.createElement("button");
       label.type = "button";
-      label.className = "button secondary editor-page-label";
+      label.className = "btn btn-outline-secondary editor-page-label";
       label.textContent = file.name + " · стр. " + page + (angle ? " · " + angle + "°" : "");
       function showChosenPage() {
         source.selectedIndex = files.indexOf(file);
@@ -49,7 +49,7 @@ export function openPdfEditor(files, existing) {
       actions.forEach(([symbol, title, disabled, action], actionIndex) => {
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "button secondary";
+        button.className = "btn btn-outline-secondary";
         button.textContent = symbol;
         button.setAttribute("aria-label", title + ": " + label.textContent);
         button.disabled = disabled;

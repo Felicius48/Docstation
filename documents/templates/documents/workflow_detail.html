@@ -1,138 +1,187 @@
 {% extends "documents/base.html" %}
 {% load previews people static rich_text %}
 {% block title %}{{ record.title }} · Задачи · DocStation{% endblock %}
+{% block extra_styles %}<link rel="stylesheet" href="{% static 'documents/task-workspace.css' %}?v=file-spacing">{% endblock %}
 {% block content %}
+<div class="task-layout">
+  <nav class="task-switcher" aria-label="Задачи в разделе">
+    <h2>Задачи</h2>
+    <div class="task-switcher-items list-group list-group-flush">
+      {% for task in nearby_tasks %}
+        <a class="task-switcher-item list-group-item list-group-item-action" href="{% url 'workflow_detail' task.pk %}"{% if task.pk == record.pk %} aria-current="page"{% endif %}>
+          <strong>{{ task.title }}</strong>
+          {% if not sent %}<small>{{ task.sender|full_name }}</small>{% endif %}
+          <small>{{ task.created_at|date:"d.m.Y · H:i" }}</small>
+        </a>
+      {% endfor %}
+    </div>
+    <a class="task-switcher-all" href="{% if sent %}{% url 'task_sent' %}{% else %}{% url 'task_incoming' %}{% endif %}">Все {% if sent %}отправленные{% else %}входящие{% endif %}</a>
+  </nav>
+<div class="task-workspace">
   <header class="workflow-header" id="task-header" data-revision="{{ record.revision|default:0 }}">
-      {% if request.user == record.sender %}<a class="back"
-                                                               href="{% url 'task_sent' %}">← К отправленным задачам</a>
-{% else %}<a class="back" href="{% url 'task_list' %}">← К входящим задачам</a>{% endif %}
-<div class="workflow-heading">
-  <div>
-    <h1>{{ record.title }}</h1>
-  </div>
-  <span class="workflow-state" data-state="{{ record.state }}">{{ record.get_state_display }}</span>
-</div>
-</header>
-<div class="workflow-grid">
-  <div class="workflow-column">
-    <section class="panel workflow-panel" aria-labelledby="workflow-document">
-      <h2 id="workflow-document">Данные задачи</h2>
-      <div class="workflow-file" id="task-file" {% if not record.version %}hidden{% endif %}>
-        {% if record.version %}
-        {% with icon=record.version.name|document_icon %}
-          <span class="workflow-file-icon" data-format="{{ icon }}">
-            {% include "documents/document_icon.html" with name=record.version.name size=32 only %}
-          </span>
-        {% endwith %}
-        <div class="row-main">
-          <b>{{ record.version.name }}</b>
-          <small>{{ record.version.name|document_suffix }} · Версия {{ record.version.number }} · {{ record.version.size|filesizeformat }}</small>
-        </div>
-        {% url 'workflow_preview' record.pk as preview_url %}
-        {% url 'workflow_file' record.pk as download_url %}
-        {% include "documents/preview_button.html" with file=record.version %}
-        <a class="button secondary"
-           href="{% url 'workflow_file' record.pk %}"><svg aria-hidden="true"><use href="#download" /></svg> Скачать</a>
+    {% if request.user == record.sender %}
+      <a class="back" href="{% url 'task_sent' %}">← К отправленным задачам</a>
+    {% else %}
+      <a class="back" href="{% url 'task_incoming' %}">← К входящим задачам</a>
+    {% endif %}
+    <div class="workflow-heading">
+      <h1>{{ record.title }}</h1>
+      <div class="workflow-next" id="task-actions">
+        <span class="workflow-state badge" data-state="{{ record.state }}">{% include "documents/status_icon.html" with state=record.state only %}{{ record.get_state_display }}</span>
+        {% if transitions %}
+          <form method="post" action="{% url 'workflow_detail' record.pk %}">
+            {% csrf_token %}
+            {% for value, label in transitions %}
+              <button class="btn btn-primary" name="state" value="{{ value }}">{% if value == "received" %}Подтвердить получение{% elif value == "in_progress" %}Взять в работу{% else %}Отметить готовым{% endif %}</button>
+            {% endfor %}
+          </form>
         {% endif %}
       </div>
-      {% include "documents/task_delivery.html" %}
-      <h3>Что нужно сделать</h3><div class="rich-message">{{ record.purpose|rich_message }}</div>
+    </div>
+  </header>
+  <div class="workflow-file border-bottom" id="task-file" {% if not record.version %}hidden{% endif %}>
+    {% if record.version %}
+      {% with icon=record.version.name|document_icon %}
+        <span class="workflow-file-icon" data-format="{{ icon }}">
+          {% include "documents/document_icon.html" with name=record.version.name size=32 only %}
+        </span>
+      {% endwith %}
+      <div class="row-main">
+        <b title="{{ record.version.name }}">{{ record.version.name }}</b>
+        <small>{{ record.version.name|document_suffix }} · Версия {{ record.version.number }} · {{ record.version.size|filesizeformat }}</small>
+      </div>
+      {% url 'workflow_preview' record.pk as preview_url %}
+      {% url 'workflow_file' record.pk as download_url %}
+      <div class="workflow-file-actions">
+        {% include "documents/preview_button.html" with file=record.version %}
+        <a class="btn btn-outline-secondary" href="{{ download_url }}"><svg aria-hidden="true"><use href="#download" /></svg> Скачать</a>
+      </div>
+    {% endif %}
+  </div>
+  <div class="task-board card">
+    <nav class="task-views nav nav-tabs" role="tablist" aria-label="Разделы задачи" hidden>
+      <button type="button" class="nav-link" role="tab" data-view="brief" aria-controls="task-brief">Задание</button>
+      <button type="button" class="nav-link" role="tab" data-view="discussion" aria-controls="document-comments">Обсуждение</button>
+      <button type="button" class="nav-link" role="tab" data-view="history" aria-controls="history-pane">История</button>
+    </nav>
+    <section id="task-brief" class="task-pane card-body" aria-labelledby="workflow-document">
+      <h2 class="card-title" id="workflow-document">{% if record.purpose %}Что нужно сделать{% else %}Данные задачи{% endif %}</h2>
+      {% if record.purpose %}<div class="rich-message">{{ record.purpose|rich_message }}</div>{% endif %}
+      {% if original_screenshot %}
+        {% url 'workflow_event_preview' record.pk original_screenshot.pk as preview_url %}
+        {% url 'workflow_event_file' record.pk original_screenshot.pk as download_url %}
+        {% include "documents/preview_button.html" with file=original_screenshot.version inline_image=True %}
+      {% endif %}
       {% if attachments %}
         <h3>Вложения к сообщению</h3>
         {% for event in attachments %}
-          {% include "documents/workflow_event_attachment.html" with initial_attachment=True %}
+          {% include "documents/workflow_event_attachment.html" with initial_attachment=True inline_image=True %}
         {% endfor %}
       {% endif %}
-    </section>
-    <section class="panel workflow-panel"
-             id="document-comments"
-             aria-labelledby="workflow-comments-title">
-      <h2 id="workflow-comments-title">Комментарии</h2>
-      <div id="task-comments" aria-live="polite">
-      {% if comments %}
-        <ol class="workflow-comments">
-          {% for event in comments %}
-            <li>
-              <div class="workflow-event-meta"><b>{{ event.actor.get_username|default:"Удалённый пользователь" }}</b><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time></div>
-              {% if event.previous_state %}<span class="workflow-note">{{ event.get_state_display }}</span>{% endif %}
-              {% if event.comment %}<div class="rich-message">{{ event.comment|rich_message }}</div>{% endif %}
-              {% if event.version %}
-                {% include "documents/workflow_event_attachment.html" %}
-              {% endif %}
-            </li>
-          {% endfor %}
-        </ol>
-      {% else %}<p class="workflow-note">Комментариев пока нет.</p>{% endif %}
-      </div>
-      <form id="comment-form" class="workflow-form"
-            method="post"
-            action="{% url 'workflow_comment' record.pk %}#document-comments"
-            enctype="multipart/form-data">
-        {% csrf_token %}
-        {{ comment_form.non_field_errors }}
-        {% include "documents/message_editor.html" with field=comment_form.comment %}
-        <div class="form-footer">
-          <button class="button primary">Опубликовать</button>
-          <button {% if not can_return_task %}hidden disabled{% endif %} class="button secondary"
-                                          name="action"
-                                          value="return">Вернуть на переделку</button>
-        </div>
-      </form>
-    </section>
-  </div>
-  <div class="workflow-column">
-    <div id="task-actions" {% if not transitions %}hidden{% endif %}>
-    {% if transitions %}
-      <section class="panel workflow-panel" aria-labelledby="workflow-actions">
-        <h2 id="workflow-actions">Действия</h2>
+      {% include "documents/task_delivery.html" %}
+      {% if request.user.is_superuser %}
+        <details class="workflow-delete">
+          <summary>Удалить задачу</summary>
           <form class="workflow-form"
                 method="post"
-                action="{% url 'workflow_detail' record.pk %}">
+                action="{% url 'workflow_delete' record.pk %}">
             {% csrf_token %}
-              {% for value, label in transitions %}
-                <button class="button primary" name="state" value="{{ value }}">{% if value == "received" %}Подтвердить получение{% elif value == "in_progress" %}Взять в работу{% else %}Отметить готовым{% endif %}</button>
-              {% endfor %}
+            <p>Карточка, комментарии и файлы, используемые только в этой ветке, будут удалены.</p>
+            <button class="btn btn-danger" name="confirm" value="delete">Подтвердить удаление</button>
           </form>
-      </section>
-    {% endif %}
-    </div>
-    {% if request.user.is_superuser %}
-      <details class="panel workflow-panel workflow-delete">
-        <summary>Удалить задачу</summary>
-        <form class="workflow-form"
-              method="post"
-              action="{% url 'workflow_delete' record.pk %}">
-          {% csrf_token %}
-          <p>Карточка, комментарии и файлы, используемые только в этой ветке, будут удалены.</p>
-          <button class="button danger" name="confirm" value="delete">Подтвердить удаление</button>
-        </form>
-      </details>
-    {% endif %}
-    <section class="panel workflow-panel" aria-labelledby="workflow-history">
-      <h2 id="workflow-history">Статусы и версии</h2>
-      <a href="{% url 'compare_versions' record.pk %}">Сравнить версии</a>
-      <ol class="workflow-timeline" id="task-history">
-        {% for event in events %}
-          <li>
-            <article class="workflow-step">
-              <div class="workflow-event-meta"><b>{{ event.actor.get_username|default:"Удалённый пользователь" }}</b><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time></div>
-              <div class="workflow-step-title">
-                {% if event.previous_state %}<span>{{ event.get_previous_state_display }}</span><span aria-hidden="true">→</span>{% endif %}
-                <span class="workflow-state"
-                      data-state="{{ event.state }}">{{ event.get_state_display }}</span>
-              </div>
-              {% if event.version %}
-                {% include "documents/workflow_event_attachment.html" %}
-              {% endif %}
-              {% if event.comment %}<div class="rich-message">{{ event.comment|rich_message }}</div>{% endif %}
-            </article>
-          </li>
-        {% empty %}<li><p class="workflow-note">Изменений пока нет.</p></li>{% endfor %}
-      </ol>
+        </details>
+      {% endif %}
     </section>
+    <section class="task-pane card-body" id="document-comments" aria-label="Комментарии">
+      <div id="task-comments" aria-live="polite">
+        {% if comments %}
+          <ol class="workflow-comments">
+            {% for event in comments reversed %}
+              <li id="comment-{{ event.pk }}" tabindex="-1">
+                {% if event.quoted_comment %}{% include "documents/comment_quote.html" with source=event.quoted_comment %}{% endif %}
+                <div class="workflow-event-meta"><b>{% if event.actor %}{{ event.actor|full_name|default:"ФИО не указано" }}{% else %}Удалённый пользователь{% endif %}</b><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time></div>
+                {% if event.previous_state %}<span class="workflow-note">{% include "documents/status_icon.html" with state=event.state only %}{{ event.get_state_display }}</span>{% endif %}
+                {% if event.comment %}<div class="rich-message">{{ event.comment|rich_message }}</div>{% endif %}
+                {% for image in event.screenshots.all %}
+                  {% url 'comment_screenshot' record.pk event.pk image.pk as preview_url %}
+                  {% include "documents/preview_button.html" with file=image inline_image=True comment_image=True download_url=preview_url|add:"?download" %}
+                {% endfor %}
+                {% if event.version %}
+                  {% include "documents/workflow_event_attachment.html" %}
+                {% endif %}
+                <button type="button" class="btn btn-link p-0" data-reply="{{ event.pk }}">Ответить</button>
+                <template data-quote>{% include "documents/comment_quote.html" with source=event %}</template>
+              </li>
+            {% endfor %}
+          </ol>
+        {% else %}<p class="workflow-note">Комментариев пока нет.</p>{% endif %}
+      </div>
+    </section>
+    <div class="task-pane card-body" id="history-pane">
+      <section id="task-history" aria-labelledby="workflow-history">
+        <h2 class="card-title" id="workflow-history">{% if record.version %}Статусы и версии{% else %}История задачи{% endif %}</h2>
+        {% if can_compare %}<a href="{% url 'compare_versions' record.pk %}">Сравнить версии</a>{% endif %}
+        <ol class="workflow-timeline">
+          {% for event in events %}
+            <li>
+              <article class="workflow-step">
+                <div class="workflow-event-meta"><b>{% if event.actor %}{{ event.actor|full_name|default:"ФИО не указано" }}{% else %}Удалённый пользователь{% endif %}</b><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time></div>
+                <div class="workflow-step-title">
+                  {% if event.previous_state %}<span class="status-inline">{% include "documents/status_icon.html" with state=event.previous_state only %}{{ event.get_previous_state_display }}</span><span aria-hidden="true">→</span>{% endif %}
+                  <span class="workflow-state badge"
+                        data-state="{{ event.state }}">{% include "documents/status_icon.html" with state=event.state only %}{{ event.get_state_display }}</span>
+                </div>
+                {% if event.version %}
+                  {% include "documents/workflow_event_attachment.html" %}
+                {% endif %}
+                {% if event.comment %}<div class="rich-message">{{ event.comment|rich_message }}</div>{% endif %}
+              </article>
+            </li>
+          {% empty %}<li><p class="workflow-note">Изменений пока нет.</p></li>{% endfor %}
+        </ol>
+      </section>
+    </div>
   </div>
+  <footer class="task-workspace-actions" hidden>
+    <span role="status" id="comment-feedback"></span>
+    <button type="button" class="btn {% if transitions or can_return_task %}btn-outline-secondary{% else %}btn-primary{% endif %}" data-compose>Написать комментарий</button>
+    <button type="button" class="btn btn-primary" data-compose-return {% if not can_return_task %}hidden{% endif %}>Вернуть на переделку</button>
+  </footer>
 </div>
-<p id="task-sync-message" role="status"></p>
+</div>
+<dialog id="comment-dialog" class="task-dialog" aria-labelledby="compose-title" open {% if comment_form.errors %}data-invalid="{{ request.POST.action|default:'comment' }}"{% endif %}>
+  <form id="comment-form" class="workflow-form modal-content"
+        method="post"
+        action="{% url 'workflow_comment' record.pk %}#document-comments"
+        enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="task-dialog-heading modal-header">
+      <h2 class="modal-title" id="compose-title">Комментарий</h2>
+      <button class="btn-close" type="button" data-close-compose aria-label="Закрыть редактор"></button>
+    </div>
+    <div class="task-fields modal-body">
+      {{ comment_form.non_field_errors }}
+      {{ comment_form.reply_to }}{{ comment_form.reply_to.errors }}
+      <div id="reply-context" hidden>
+        <span>Ответ на комментарий</span>
+        <div data-selected-quote></div>
+        <button type="button" class="btn btn-link p-0" data-cancel-reply>Отменить ответ</button>
+      </div>
+      {% include "documents/message_editor.html" with field=comment_form.comment external_controls=True %}
+    </div>
+    <div class="task-dialog-footer">
+      {% include "documents/message_attachments.html" with screenshots_only=True %}
+      {% include "documents/message_attachments.html" %}
+      <p id="task-sync-message" role="status"></p>
+    </div>
+    <div class="form-footer modal-footer">
+      <button class="btn btn-primary" data-publish>Опубликовать</button>
+      <button {% if not can_return_task %}hidden disabled{% endif %}
+              class="btn btn-primary" name="action" value="return">Вернуть на переделку</button>
+    </div>
+  </form>
+</dialog>
+{% include "documents/mark_dialog.html" %}
 {% include "documents/preview_dialog.html" %}
-<script defer src="{% static 'documents/task-detail.js' %}"></script>
+<script defer src="{% static 'documents/task-detail.js' %}?v=action-hierarchy"></script>
 {% endblock %}

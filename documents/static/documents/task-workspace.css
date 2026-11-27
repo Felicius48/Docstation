@@ -1,0 +1,201 @@
+.shell:has(.task-workspace.is-interactive) {
+  height: 100dvh;
+  min-height: 0;
+}
+.page-wrapper:has(.task-workspace) { min-height: 0; }
+.content:has(.task-workspace) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding-block: clamp(12px, 2.5vh, 28px) max(12px, env(safe-area-inset-bottom));
+}
+.task-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.task-workspace .workflow-header { padding: 0; }
+.task-workspace .workflow-header h1 {
+  max-height: 2.5em;
+  overflow: auto;
+}
+.task-workspace .workflow-heading { align-items: center; gap: 6px 16px; }
+.task-workspace [data-state="created"] { background: var(--subtle); color: var(--ink); }
+.task-workspace .row-main { overflow-wrap: anywhere; }
+.task-workspace .row-main b {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.task-board {
+  flex: 1;
+  min-height: 0;
+}
+.is-interactive .task-board {
+  display: grid;
+  grid-template: "brief views" auto "brief stream" minmax(0, 1fr) / minmax(240px, 0.78fr) minmax(0, 1.35fr);
+  overflow: hidden;
+}
+.task-views {
+  grid-area: views;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  padding-inline: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.task-views button {
+  color: var(--muted);
+  font-weight: 600;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  padding: 12px 4px 9px;
+  background: transparent;
+}
+.task-views button[aria-selected="true"] {
+  color: var(--accent-dark);
+  border-color: var(--accent-dark);
+}
+.task-views button:focus-visible { outline-offset: -4px; }
+.task-pane { min-width: 0; }
+.is-interactive .task-pane {
+  grid-area: stream;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.is-interactive #task-brief { grid-area: brief; border-inline-end: 1px solid var(--line); }
+#task-brief h3 { margin: 16px 0 6px; }
+#task-brief .task-delivery {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+#task-brief .workflow-delete { margin-top: 20px; }
+#task-history .workflow-timeline { margin-top: 14px; }
+.task-board .workflow-comments > li:first-child { padding-top: 0; }
+.task-board [data-reply] { justify-self: start; min-height: 32px; }
+.task-workspace-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#comment-feedback:not(:empty) { margin-inline-end: auto; color: var(--muted); font-size: 13px; }
+#comment-dialog .workflow-form {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(90dvh - 2px);
+  margin: 0;
+  gap: 0;
+}
+.task-dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.task-dialog-heading h2 { padding: 0; }
+#task-sync-message:empty { display: none; }
+#task-sync-message { color: var(--error-text); }
+@media (min-width: 901px) {
+  .task-views [data-view="brief"] { display: none; }
+}
+@media (max-width: 900px) {
+  .is-interactive .task-board { grid-template: "views" auto "stream" minmax(0, 1fr) / minmax(0, 1fr); }
+  .is-interactive #task-brief { grid-area: stream; border: 0; }
+  .task-views { gap: 4px; padding-inline: 6px; }
+  .task-views button { flex: 1; }
+}
+@media (max-width: 600px) {
+  .task-workspace { gap: 8px; }
+  .task-workspace .workflow-header .back { margin-bottom: 4px; }
+  .workflow-file-actions { flex-basis: 100%; }
+  .workflow-file-actions .btn { flex: 1 1 auto; }
+  .task-workspace-actions .btn { flex: 1; }
+  #comment-dialog .workflow-form { height: 100%; max-height: 100%; }
+}
+@media (max-height: 500px) and (min-width: 601px) {
+  .content:has(.task-workspace) { padding-block: 4px; }
+  .task-workspace { gap: 4px; }
+  .task-workspace .workflow-header .back { margin-bottom: 0; }
+  .task-workspace .workflow-file { padding-block: 4px; }
+}
+@media (max-height: 335px) {
+  .shell:has(.task-workspace.is-interactive) { height: auto; min-height: 100dvh; }
+  .is-interactive .task-board { min-height: 13rem; max-height: 70dvh; flex: auto; }
+  .task-workspace-actions { position: sticky; bottom: 0; background: var(--canvas); padding-block: 4px; }
+}
+#comment-dialog .task-dialog-footer {
+  overflow-y: auto;
+  max-height: 32dvh;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 6px 16px;
+}
+#comment-dialog .task-composer-tools {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: start;
+  gap: 4px;
+}
+#comment-dialog .task-composer-tools [data-attach] { order: -1; }
+#task-sync-message { grid-column: 1 / -1; }
+#comment-dialog .form-footer {
+  justify-content: flex-end;
+  margin: 0;
+  padding: 0 16px max(8px, env(safe-area-inset-bottom));
+}
+#comment-feedback:empty { display: none; }
+@media (max-width: 600px) {
+  #comment-dialog .task-dialog-footer { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #comment-dialog .form-footer .btn { width: 100%; }
+}
+.task-layout:not(:has(.is-interactive)) ~ #comment-dialog {
+  position: static;
+  margin: 0;
+  width: 100%;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+.task-layout:not(:has(.is-interactive)) ~ #comment-dialog [data-close-compose] { display: none; }
+
+.task-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.task-switcher { display: none; }
+@media (min-width: 1120px) {
+  .content:has(.task-layout) { width: 100%; padding-inline: 0 16px; }
+  .task-layout { gap: 16px; }
+  .task-workspace { min-width: 0; }
+  .task-workspace .workflow-header .back { display: none; }
+  .task-switcher {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 clamp(200px, 20vw, 275px);
+    border-inline-end: 1px solid var(--line);
+    padding-inline: 12px;
+  }
+  .task-switcher h2 { padding: 4px 8px 12px; }
+  .task-switcher-items { overflow: auto; min-height: 0; }
+  .task-switcher-item { display: grid; gap: 2px; padding: 12px 8px; color: var(--ink); overflow-wrap: anywhere; }
+  .task-switcher-item + .task-switcher-item { border-top: 1px solid var(--line); }
+  .task-switcher-item:hover { background: var(--subtle); }
+  .task-switcher-item[aria-current="page"] {
+    background: var(--accent-soft);
+    box-shadow: inset 3px 0 var(--accent);
+    color: var(--accent-dark);
+    border-radius: 0;
+  }
+  .task-switcher-item small { color: var(--muted); }
+  .task-switcher-all { padding: 12px 8px; }
+}

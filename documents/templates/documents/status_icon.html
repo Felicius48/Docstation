@@ -1,0 +1,3 @@
+<svg class="status-icon" aria-hidden="true">
+  <use href="#status-{% if state == 'running' or state == 'rework' %}processing{% elif state == 'failed' %}error{% else %}{{ state }}{% endif %}" />
+</svg>

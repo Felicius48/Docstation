@@ -2,13 +2,15 @@
 {% with mime=file.name|preview_type %}
   {% if mime %}
     <button type="button"
-            class="button secondary"
+            class="{% if inline_image and mime|slice:':6' == 'image/' %}btn btn-outline-secondary screenshot-preview{% else %}btn btn-outline-secondary{% endif %}"
+            {% if file.marks %}data-marks="{{ file.marks|marks_json }}"{% endif %}
             data-file-preview="{{ preview_url }}"
             data-download="{{ download_url }}"
             data-name="{{ file.name }}"
+            {% if comment_image %}data-comment-image{% endif %}
             data-type="{{ mime }}"
             data-size="{{ file.size|filesizeformat }}"
             data-version="{{ file.number|default:'' }}"
-            aria-label="Предпросмотр {{ file.name }}">Предпросмотр</button>
+            aria-label="Предпросмотр {{ file.name }}">{% if inline_image and mime|slice:':6' == 'image/' %}{% if file.marks %}<marked-image data-marks="{{ file.marks|marks_json }}">{% endif %}<img src="{{ preview_url }}" alt="{{ file.name }}" loading="lazy">{% if file.marks %}</marked-image>{% endif %}{% else %}Предпросмотр{% endif %}</button>
   {% endif %}
 {% endwith %}

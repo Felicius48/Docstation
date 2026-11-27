@@ -6,16 +6,6 @@
 }
 
 .notification-toast {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  color: var(--ink, #15213a);
-  background: var(--canvas, #fff);
-  border: 1px solid var(--accent, #0344dc);
-  border-radius: 12px;
-  box-shadow: 0 8px 30px #0003;
   touch-action: pan-y;
   animation: notification-roll 220ms ease-out both;
 }
@@ -30,12 +20,9 @@
   overflow-wrap: anywhere;
 }
 
-.notification-toast button {
-  color: inherit;
-  background: transparent;
-  border: 0;
-  font-size: 1.35rem;
-  cursor: pointer;
+.notification-toast .btn-close {
+  --tblr-btn-close-opacity: 1;
+  --tblr-btn-close-hover-opacity: 1;
 }
 
 @keyframes notification-roll {

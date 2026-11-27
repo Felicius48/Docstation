@@ -13,7 +13,9 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST, require_safe
 
-from .file_responses import download
+from PIL import Image
+
+from .file_responses import download, preview_type
 from .models import (
     WORKFLOW_TEXT_LIMIT,
     Document,
@@ -21,6 +23,7 @@ from .models import (
     WorkflowEvent,
     WorkflowRecord,
 )
+from .screenshot_marks import attachment_marks
 from .storage import remove_files
 from .uploads import TOO_LARGE, request_file
 from .version_storage import save_version
@@ -58,18 +61,17 @@ def card_records(user):
 @login_required
 @require_http_methods(["GET", "HEAD", "POST"])
 @never_cache
-def task_list(request, sent=False):
+def task_list(request, folder="all"):
     writing = request.method == "POST"
     form = TaskForm(request.user, request.POST if writing else None)
     if writing:
         response = create_task(request, form)
         if response is not None:
             return response
-    records = card_records(request.user).order_by("-updated_at", "-pk")
-    if sent:
-        records = records.filter(sender=request.user)
-    else:
-        records = records.filter(recipients=request.user)
+    incoming = Q(recipients=request.user)
+    sent = Q(sender=request.user)
+    folders = {"all": incoming | sent, "incoming": incoming, "sent": sent}
+    records = card_records(request.user).filter(folders[folder]).distinct().order_by("-created_at", "-pk")
     today = timezone.localdate()
     task_filter = request.GET.get("filter")
     if task_filter == "overdue":
@@ -77,16 +79,16 @@ def task_list(request, sent=False):
     elif task_filter == "today":
         records = records.filter(due_date=today).exclude(state=State.DONE)
     elif task_filter == "waiting":
-        states = [State.SENT, State.RECEIVED, State.REWORK]
-        if sent:
-            states.append(State.IN_PROGRESS)
-        records = records.filter(state__in=states)
+        waiting = Q(state__in=(State.SENT, State.RECEIVED, State.REWORK))
+        if folder != "incoming":
+            waiting |= sent & Q(state=State.IN_PROGRESS)
+        records = records.filter(waiting)
     return render(
         request,
         "documents/task_rows.html" if not writing and request.headers.get("X-Fragment") == "tasks" else "documents/task_list.html",
         {
             "page": Paginator(records, WORKFLOW_PAGE_SIZE).get_page(request.GET.get("page")),
-            "sent": sent,
+            "folder": folder,
             "form": form,
         },
     )
@@ -111,6 +113,20 @@ def task_notifications(request):
     )
 
 
+def is_screenshot(name):
+    return preview_type(name).startswith("image/")
+
+
+def check_screenshot(upload):
+    try:
+        with Image.open(upload.temporary_file_path(), formats=["PNG", "JPEG", "WEBP"]) as image:
+            if Image.MIME.get(image.format) != preview_type(upload.name):
+                raise ValueError("Расширение скриншота не соответствует его формату.")
+            image.verify()
+    except (OSError, SyntaxError, Image.DecompressionBombError) as exc:
+        raise ValueError("Выберите корректный скриншот в формате PNG, JPEG или WebP.") from exc
+
+
 def create_task(request, form):
     if not form.is_valid():
         return None
@@ -122,8 +138,14 @@ def create_task(request, form):
                 raise ValueError(TOO_LARGE)
             if sum(upload.size for upload in uploads) > settings.MAX_FILE_SIZE:
                 raise ValueError("Общий размер вложений превышает 50 МБ.")
-            for upload in uploads:
-                versions.append(save_version(request.user, upload))
+            screenshots = [upload for upload in uploads if is_screenshot(upload.name)]
+            if not form.cleaned_data["purpose"] and not screenshots:
+                form.add_error("purpose", "Напишите сообщение или прикрепите скриншот.")
+                return None
+            for screenshot in screenshots:
+                check_screenshot(screenshot)
+            for upload, marks in zip(uploads, attachment_marks(request, "file", uploads)):
+                versions.append(save_version(request.user, upload, marks=marks))
             uploaded = versions[0] if versions else None
             title = form.cleaned_data["title"] or (uploaded.name if uploaded else "")
             if not title:
@@ -207,22 +229,40 @@ def save_revision(record, request):
 
 
 def render_record(request, record, comment_form=None):
-    events = list(record.events.select_related("actor", "version").order_by("pk"))
+    events = list(record.events.select_related("actor__profile", "version").defer("actor__profile__avatar").prefetch_related("screenshots").order_by("pk"))
+    comments = {event.pk: event for event in events if event.is_comment or (event.previous_state and event.comment)}
+    for event in comments.values():
+        event.quoted_comment = comments.get(event.reply_to_id)
     attachments = [event for event in events if event.state == State.SENT and event.version_id
                    and not event.previous_state and not event.is_comment]
     attachment_ids = {event.pk for event in attachments}
+    sent = record.sender_id == request.user.pk
+    folder = {"sender": request.user} if sent else {"recipients": request.user}
+    nearby_tasks = visible_records(request.user).filter(Q(**folder) | Q(pk=record.pk))
+    # Show the same page of the folder when moving between its tasks.
+    newer_count = nearby_tasks.filter(pk__gt=record.pk).count()
+    offset = (newer_count // WORKFLOW_PAGE_SIZE) * WORKFLOW_PAGE_SIZE
+    nearby_tasks = nearby_tasks.select_related("sender__profile").defer("sender__profile__avatar")
     return render(
         request,
         "documents/workflow_detail.html",
         {
             "comment_form": comment_form if comment_form is not None else CommentForm(),
-            "comments": [
-                event for event in events if event.is_comment or (event.previous_state and event.comment)
-            ],
+            "comments": comments.values(),
+            "sent": sent,
+            "nearby_tasks": nearby_tasks.order_by("-pk")[offset:offset + WORKFLOW_PAGE_SIZE],
             "can_return_task": can_return_task(request.user, record),
             "can_replace_file": can_replace_file(request.user, record),
             "record": record,
             "attachments": attachments,
+            "original_screenshot": next((
+                event for event in events if event.state == State.CREATED and event.version_id
+                and is_screenshot(event.version.name)
+            ), None),
+            "can_compare": record.version_id is not None and len({
+                event.version_id for event in events
+                if event.version_id and event.version.document_id == record.version.document_id
+            }) >= 2,
             "events": [
                 event for event in events if event.pk not in attachment_ids
                 and (not event.is_comment or event.version_id or event.previous_state)
@@ -255,9 +295,17 @@ def workflow_file(request, pk, event_pk=None, preview=False):
 
 
 @login_required
+@require_safe
+def comment_screenshot(request, pk, event_pk, file_pk):
+    record = get_object_or_404(visible_records(request.user), pk=pk)
+    file = get_object_or_404(Version, pk=file_pk, screenshot_events__pk=event_pk, screenshot_events__record=record)
+    return download(file.key, file.name, preview="download" not in request.GET)
+
+
+@login_required
 @require_POST
 def workflow_comment(request, pk):
-    uploaded = None
+    saved = []
     try:
         with transaction.atomic():
             record = get_object_or_404(card_records(request.user), pk=pk)
@@ -265,38 +313,56 @@ def workflow_comment(request, pk):
             returning = request.POST.get("action") == "return"
             if returning and not can_return_task(request.user, record):
                 raise PermissionDenied
-            attaching = bool(request.FILES) or getattr(request, "file_too_large", False)
+            if getattr(request, "file_too_large", False):
+                raise ValueError(TOO_LARGE)
+            screenshots = request.FILES.getlist("screenshot")
+            attaching = "file" in request.FILES
+            uploads = screenshots + request.FILES.getlist("file")
+            if sum(upload.size for upload in uploads) > settings.MAX_FILE_SIZE:
+                raise ValueError("Общий размер вложений превышает 50 МБ.")
+            for screenshot in screenshots:
+                check_screenshot(screenshot)
             if attaching and not returning and not can_replace_file(request.user, record):
                 raise PermissionDenied
             if not form.is_valid():
                 return render_record(request, record, comment_form=form)
+            parent = form.cleaned_data["reply_to"]
+            if parent is not None and not record.events.filter(
+                Q(is_comment=True) | (~Q(previous_state="") & ~Q(comment="")), pk=parent,
+            ).exists():
+                form.add_error("reply_to", "Исходный комментарий недоступен в этой задаче.")
+                return render_record(request, record, comment_form=form)
+            marks = attachment_marks(request, "screenshot", screenshots)
             comment = form.cleaned_data["comment"]
-            if not (comment or attaching or returning):
-                form.add_error("comment", "Добавь комментарий или прикрепи новую версию.")
+            if not (comment or attaching or screenshots or returning):
+                form.add_error("comment", "Добавь комментарий, скриншот или новую версию.")
                 return render_record(request, record, comment_form=form)
             if attaching:
-                uploaded = save_revision(record, request)
-                record.version = uploaded
+                record.version = save_revision(record, request)
+                saved.append(record.version)
             if returning:
                 record.state = State.REWORK
             if attaching or returning:
                 record.save(update_fields=["version", "state", "updated_at"])
-            record.events.create(
+            event = record.events.create(
                 actor=request.user,
                 state=record.state,
                 previous_state=State.DONE if returning else "",
-                is_comment=not returning or bool(comment),
+                is_comment=not returning or bool(comment or screenshots or parent),
+                reply_to_id=parent,
                 comment=comment,
-                version=uploaded,
+                version=record.version if attaching else None,
             )
+            for screenshot, shapes in zip(screenshots, marks):
+                file = save_version(record.sender, screenshot, marks=shapes)
+                saved.append(file)
+                event.screenshots.add(file)
     except ValueError as exc:
-        if uploaded:
-            remove_files([uploaded.key])
+        remove_files(file.key for file in saved)
         form.add_error(None, str(exc))
         return render_record(request, record, comment_form=form)
     except BaseException:
-        if uploaded:
-            remove_files([uploaded.key])
+        remove_files(file.key for file in saved)
         raise
     return redirect(reverse("workflow_detail", args=[pk]) + "#document-comments")
 
@@ -313,6 +379,7 @@ def workflow_delete(request, pk):
     record = get_object_or_404(WorkflowRecord.objects.select_related("version"), pk=pk)
     document_id = record.version.document_id if record.version else None
     version_ids = set(record.events.exclude(version_id=None).values_list("version_id", flat=True))
+    version_ids.update(Version.objects.filter(screenshot_events__record=record).values_list("pk", flat=True))
     if record.version_id:
         version_ids.add(record.version_id)
     record.events.all().delete()
@@ -330,6 +397,7 @@ def workflow_delete(request, pk):
         pk__in=version_ids,
         workflowrecord__isnull=True,
         workflowevent__isnull=True,
+        screenshot_events__isnull=True,
         job_inputs__isnull=True,
     )
     files = list(unused.values_list("key", "document_id"))

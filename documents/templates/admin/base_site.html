@@ -4,7 +4,7 @@
 {% block extrastyle %}
   {{ block.super }}
   <link rel="icon" type="image/svg+xml" href="{% static 'documents/favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'documents/admin-sneat.css' %}">
+  <link rel="stylesheet" href="{% static 'documents/admin-tabler.css' %}?v=square-contrast">
 {% endblock %}
 {% block branding %}<div id="site-name"><a href="{% url 'account_admin:index' %}">{{ site_header }}</a></div>{% endblock %}
 {% block nav-global %}{% endblock %}
@@ -13,6 +13,7 @@
   {{ block.super }}
   {% if request.user.is_authenticated %}
     <a href="{% url 'notifications' %}">Уведомления DocStation</a>
+    <script defer src="{% static 'documents/vendor/tabler/tabler.min.js' %}"></script>
     {% include "documents/notification_toast.html" %}
   {% endif %}
 {% endblock %}

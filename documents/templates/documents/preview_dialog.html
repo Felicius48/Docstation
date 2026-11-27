@@ -1,26 +1,26 @@
 {% load static %}
 <dialog class="pdf-picker" id="file-preview" aria-labelledby="preview-title">
   <div class="pdf-picker-inner">
-    <div class="section-head">
-      <h2 id="preview-title"></h2>
+    <div class="section-head modal-header">
+      <h2 class="modal-title" id="preview-title"></h2>
       <form method="dialog">
-        <button class="button secondary" autofocus>Закрыть</button>
+        <button class="btn btn-outline-secondary" autofocus>Закрыть</button>
       </form>
     </div>
     <p class="pdf-picker-name" id="preview-meta"></p>
     <div class="pdf-picker-controls">
-      <button class="button secondary" type="button" id="preview-prev">Назад</button>
+      <button class="btn btn-outline-secondary" type="button" id="preview-prev">Назад</button>
       <span id="preview-page" role="status"></span>
-      <button class="button secondary" type="button" id="preview-next">Далее</button>
-      <button class="button secondary"
+      <button class="btn btn-outline-secondary" type="button" id="preview-next">Далее</button>
+      <button class="btn btn-outline-secondary"
               type="button"
               id="preview-smaller"
               aria-label="Уменьшить">−</button>
-      <button class="button secondary"
+      <button class="btn btn-outline-secondary"
               type="button"
               id="preview-larger"
               aria-label="Увеличить">+</button>
-      <a class="button primary" id="preview-download">Скачать</a>
+      <a class="btn btn-primary" id="preview-download">Скачать</a>
     </div>
     <p id="preview-status" role="status"></p>
     <div id="preview-surface"
@@ -29,4 +29,4 @@
          aria-label="Содержимое файла"></div>
   </div>
 </dialog>
-<script type="module" src="{% static 'documents/file-preview.js' %}"></script>
+<script type="module" src="{% static 'documents/file-preview.js' %}?v=20261126-marks"></script>
